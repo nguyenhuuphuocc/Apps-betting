@@ -1,0 +1,17 @@
+{
+  "name": "betting-intelligence-platform",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"yarn workspace @betintel/api dev\" \"yarn workspace @betintel/web dev\"",
+    "build": "yarn workspace @betintel/api build && yarn workspace @betintel/web build",
+    "start": "concurrently \"yarn workspace @betintel/api start\" \"yarn workspace @betintel/web dev\"",
+    "lint": "yarn workspace @betintel/web lint"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}

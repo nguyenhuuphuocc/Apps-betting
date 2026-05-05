@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: betintel-api
+    runtime: node
+    rootDir: apps/api
+    buildCommand: yarn
+    startCommand: yarn start
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: API_PORT
+        value: "4000"
+
+  - type: web
+    name: betintel-web
+    runtime: node
+    rootDir: apps/web
+    buildCommand: yarn && yarn build
+    startCommand: yarn start
+    envVars:
+      - key: NODE_VERSION
+        value: "20"

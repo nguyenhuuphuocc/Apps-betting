@@ -1,184 +1,176 @@
-# Live Multi-Sport Betting Analytics Platform
+# Professional Sports Betting Analytics Platform
 
-This project upgrades the previous static betting dashboard into a live multi-sport analytics platform with:
+Production-oriented multi-sport betting intelligence platform with:
 
-- Backend API routes
-- SQLite persistence with table schema/migrations
-- BALLDONTLIE + Odds provider ingestion (multi-sport odds sync)
-- Prediction engine (moneyline/spread/total with EV and risk sizing)
-- Calibrated prediction engine (bounded probabilities + Monte Carlo blend)
-- EV grading and value-gap classification (green/yellow/red)
-- Matchup/context intelligence (rest, b2b, injuries, postseason pressure)
-- Line movement intelligence (opening vs current, steam/trap signals)
-- Backtesting endpoint
-- Bankroll/risk rules
-- Frontend auto-refresh and settings controls
-- Premium UI upgrade (dark/light toggle, collapsible sidebar, status header)
-- Advanced backtest controls + export (CSV / JSON)
-- Expanded settings engine (API, bankroll, risk, model weights, display, sync)
+- Next.js + Tailwind frontend (premium dark UI)
+- Express + WebSocket backend
+- PostgreSQL persistence for events, odds history, predictions, and backtests
+- Redis caching with in-memory fallback
+- Odds API + BallDontLie integration
+- +EV detection, line movement tracking, AI probability model, and backtesting
 
-## Safety Notice
+Predictions are not guaranteed. Bet responsibly. No bet if no edge exists.
 
-- Predictions are not guaranteed.
-- Bet responsibly.
-- This tool is for analysis and education only.
-- No bet is recommended unless positive expected value is detected.
+## 1) Project Structure
 
-## Architecture
-
-`API Provider -> Backend API -> SQLite -> Prediction Engine -> Dashboard`
-
-Supported sports (odds-driven today):
-
-- NBA
-- WNBA
-- MLB
-- NHL
-- NFL
-- NCAABB
-- EuroLeague
-- Soccer (World Cup + leagues where odds are available)
-- Tennis (ATP/WTA Rome keys included)
-- Boxing
-
-Notes:
-
-- NBA has the deepest stats context in this build (team/player/injury depth).
-- Non-NBA sports are synced through Odds API markets and run through the same EV/risk engine with bounded probabilities and no-bet discipline.
-
-Key backend files:
-
-- [server.mjs](C:/Users/nguye/Documents/Codex/2026-05-04/you-are-an-elite-sports-betting/server.mjs)
-- [backend/db/schema.sql](C:/Users/nguye/Documents/Codex/2026-05-04/you-are-an-elite-sports-betting/backend/db/schema.sql)
-- [backend/services/syncService.mjs](C:/Users/nguye/Documents/Codex/2026-05-04/you-are-an-elite-sports-betting/backend/services/syncService.mjs)
-- [backend/services/predictionEngine.mjs](C:/Users/nguye/Documents/Codex/2026-05-04/you-are-an-elite-sports-betting/backend/services/predictionEngine.mjs)
-- [backend/services/dashboardService.mjs](C:/Users/nguye/Documents/Codex/2026-05-04/you-are-an-elite-sports-betting/backend/services/dashboardService.mjs)
-
-Frontend integration:
-
-- [index.html](C:/Users/nguye/Documents/Codex/2026-05-04/you-are-an-elite-sports-betting/index.html)
-- [app.js](C:/Users/nguye/Documents/Codex/2026-05-04/you-are-an-elite-sports-betting/app.js)
-- [live-client.js](C:/Users/nguye/Documents/Codex/2026-05-04/you-are-an-elite-sports-betting/live-client.js)
-
-## Database Tables
-
-Implemented tables include:
-
-- `teams`
-- `players`
-- `games`
-- `player_game_stats`
-- `odds_history`
-- `predictions`
-- `bets`
-- `bankroll_history`
-- `injuries`
-- `backtest_results`
-
-Additional runtime config table:
-
-- `settings`
-
-## Setup
-
-1. Copy env template:
-
-```powershell
-Copy-Item .env.example .env
+```text
+you-are-an-elite-sports-betting/
+  apps/
+    api/
+      src/
+        config/env.js
+        lib/
+          cache.js
+          db.js
+          retry.js
+        services/
+          providers/
+            oddsApi.js
+            ballDontLie.js
+          quant/
+            evEngine.js
+            predictionModel.js
+          dashboardService.js
+        routes.js
+        index.js
+      .env.example
+      package.json
+    web/
+      src/
+        app/
+          globals.css
+          layout.tsx
+          page.tsx
+        components/dashboard/
+          KpiCard.tsx
+          LiveGamesTable.tsx
+          EvTable.tsx
+          BacktestPanel.tsx
+        hooks/useDashboardData.ts
+        lib/api.ts
+        types/index.ts
+      .env.local.example
+      package.json
+      tailwind.config.ts
+      next.config.mjs
+  package.json
+  render.yaml
 ```
 
-2. Edit `.env` and add API keys:
+## 2) Backend API Routes
 
-- `BALLDONTLIE_API_KEY`
-- `ODDS_API_KEY`
+Base URL: `http://localhost:4000`
 
-3. Start the backend server:
+- `GET /health`
+- `GET /api/v1/status`
+- `POST /api/v1/sync`
+- `GET /api/v1/live-games?sportKey=basketball_nba`
+- `GET /api/v1/ev-bets?minEdge=2&minConfidence=6`
+- `GET /api/v1/line-movement/:eventId`
+- `GET /api/v1/team/:teamId/analytics`
+- `GET /api/v1/player/:playerId/analytics`
+- `POST /api/v1/backtest`
 
-```powershell
-& 'C:\Users\nguye\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' server.mjs
+WebSocket events:
+
+- `server:ready`
+- `sync:tick`
+- `sync:complete`
+- `sync:error`
+
+## 3) Core Quant Logic
+
+- **Implied probability** from American odds
+- **Expected value**:
+  - `EV = (win_probability * payout) - (lose_probability * stake)`
+- **+EV detector** with confidence/risk labels
+- **Kelly fraction** for bankroll sizing (capped)
+- **Prediction model**:
+  - Logistic-style scorer with market prior + context features
+  - Bounded probabilities to avoid unrealistic certainty
+
+## 4) Local Setup
+
+### Prerequisites
+
+- Node 20+
+- Yarn 1.x+
+- PostgreSQL
+- Redis (optional, but recommended)
+
+### Install
+
+```bash
+yarn
 ```
 
-4. Open:
+### Environment
 
-- [http://localhost:8787](http://localhost:8787)
+1. Copy root env (optional if you already have one):
 
-If you were already running an older server build, fully stop it and restart so the new settings schema and routes are loaded.
+```bash
+cp .env.example .env
+```
 
-## Real-Time Refresh Strategy
+2. Backend env:
 
-Default auto update intervals:
+```bash
+cp apps/api/.env.example apps/api/.env
+```
 
-- Live scores: every `30s`
-- Pre-game odds: every `10m`
-- Scheduled games: every `6h`
-- Injuries: every `20m`
-- Final game player stats: every `15m`
+3. Frontend env:
 
-Intervals are editable from the **Settings** tab and persisted in SQLite.
+```bash
+cp apps/web/.env.local.example apps/web/.env.local
+```
 
-## API Routes
+Edit values:
 
-Health and status:
+- `apps/api/.env`
+  - `ODDS_API_KEY`
+  - `BALLDONTLIE_API_KEY`
+  - `DATABASE_URL`
+  - `REDIS_URL`
+- `apps/web/.env.local`
+  - `NEXT_PUBLIC_API_BASE_URL=http://localhost:4000`
 
-- `GET /api/health`
-- `GET /api/status`
+### Run
 
-Settings:
+```bash
+yarn dev
+```
 
-- `GET /api/settings`
-- `PUT /api/settings`
-- `POST /api/settings/test`
+Frontend:
+- [http://localhost:3000](http://localhost:3000)
 
-Sync:
+Backend:
+- [http://localhost:4000/health](http://localhost:4000/health)
 
-- `POST /api/sync/run`
+## 5) Deployment on Render
 
-Dashboard data:
+Use `render.yaml` or create two services manually:
 
-- `GET /api/dashboard/live?date=YYYY-MM-DD`
-- `GET /api/games/past?from=YYYY-MM-DD&to=YYYY-MM-DD`
-- `GET /api/games/future?from=YYYY-MM-DD&to=YYYY-MM-DD`
-- `GET /api/predictions?from=YYYY-MM-DD&to=YYYY-MM-DD`
-- `GET /api/players/:id/analysis?opponentTeamId=:teamId`
+1. **API service**
+   - Root directory: `apps/api`
+   - Build: `yarn`
+   - Start: `yarn start`
+   - Env vars:
+     - `ODDS_API_KEY`
+     - `BALLDONTLIE_API_KEY`
+     - `DATABASE_URL`
+     - `REDIS_URL`
+     - `FRONTEND_ORIGIN` (your web URL)
 
-Backtesting:
+2. **Web service**
+   - Root directory: `apps/web`
+   - Build: `yarn && yarn build`
+   - Start: `yarn start`
+   - Env vars:
+     - `NEXT_PUBLIC_API_BASE_URL` = your API URL
 
-- `POST /api/backtest/run`
-- `GET /api/backtest/results`
+## 6) Notes
 
-`POST /api/backtest/run` now accepts optional controls:
-
-- `sport`, `league`, `team`, `betType`
-- `minConfidence`, `minEv`
-- `maxBetsPerDay`, `maxDailyExposureUnits`, `maxUnitSize`
-- `skipInjuryUncertainty`
-
-Tracked bets:
-
-- `GET /api/bets`
-- `POST /api/bets`
-- `PATCH /api/bets/:id/result`
-
-## Risk Management Rules
-
-Implemented rules:
-
-- `1 unit = 1%` bankroll (configurable)
-- Suggested sizing:
-  - Low confidence: `0.5-1u`
-  - Medium confidence: `1-2u`
-  - High confidence: up to `2-3u`
-- Hard cap: max single bet `%` (default `5%`)
-- Losing streak control:
-  - `3+` losses: recommended size reduced by `50%`
-  - `7+` losses: recommendation size becomes `0` (pause state)
-- If edge is non-positive, recommendation is `NO BET`
-- UI and model outputs are sanitized to avoid `Infinity`, `NaN`, and impossible probability displays
-
-## Notes
-
-- API keys are never exposed in frontend JavaScript.
-- If an API is unavailable, the UI gracefully falls back to existing local dashboard data.
-- The frontend tracker/backtest modules remain available and now coexist with live backend sync.
-- Probability outputs are bounded between `5%` and `95%` to prevent unrealistic certainty.
-- Non-finite EV values are blocked and downgraded to neutral/no-bet handling.
+- API keys are backend-only and never exposed to frontend.
+- Retry logic + cache fallback is built in.
+- If live data is down, UI should continue with graceful messaging.
+- Existing legacy single-page dashboard files remain in repo for backward compatibility (`index.html`, `app.js`, `live-client.js`, `server.mjs`).
