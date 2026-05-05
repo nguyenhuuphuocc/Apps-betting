@@ -368,6 +368,7 @@ function updateSettingsPanel(statusPayload, dashboardPayload) {
   card.innerHTML = [
     ["BALLDONTLIE key", statusPayload?.keys?.balldontlie || "missing"],
     ["Odds key", statusPayload?.keys?.odds || "missing"],
+    ["Sports enabled", "NBA, WNBA, MLB, NHL, NFL, NCAABB, EuroLeague, Soccer, Tennis, Golf, Boxing"],
     ["Provider", settings.api_provider || "default"],
     ["Req. limit", `${statusPayload?.request_limits?.estimated_remaining ?? "?"}/${statusPayload?.request_limits?.daily_cap ?? "?"}`],
     ["Last full sync", statusPayload?.sync?.last_run_at || "N/A"],
@@ -468,7 +469,7 @@ function installSettingsEvents() {
       await refreshLiveDashboard();
       status.textContent = "Sync complete";
     } catch (error) {
-      status.textContent = "Sync failed";
+      status.textContent = `Sync failed: ${error?.message || "Unknown error"}`;
     }
   });
 
@@ -479,7 +480,7 @@ function installSettingsEvents() {
       const result = await fetchJson("/api/settings/test", { method: "POST" });
       status.textContent = result.ok ? "API connection healthy" : "API keys missing";
     } catch (error) {
-      status.textContent = "API test failed";
+      status.textContent = `API test failed: ${error?.message || "Unknown error"}`;
     }
   });
 
@@ -494,20 +495,30 @@ function installSettingsEvents() {
 }
 
 async function refreshLiveDashboard() {
+  let statusPayload = null;
   try {
     if (typeof state !== "undefined") {
       state.ui.loading = true;
       state.ui.error = null;
       render();
     }
-    const [dashboardPayload, statusPayload] = await Promise.all([
+    const [dashboardResult, statusResult] = await Promise.allSettled([
       fetchJson(`/api/dashboard/live?date=${encodeURIComponent(state.filters.date || "2026-05-05")}`),
       fetchJson("/api/status")
     ]);
+    const dashboardPayload = dashboardResult.status === "fulfilled" ? dashboardResult.value : null;
+    statusPayload = statusResult.status === "fulfilled" ? statusResult.value : null;
+
+    if (!dashboardPayload) {
+      throw dashboardResult.reason || new Error("Dashboard payload unavailable");
+    }
+
     LIVE_CLIENT.enabled = true;
     LIVE_CLIENT.lastDashboard = dashboardPayload;
     mapLiveDashboard(dashboardPayload);
-    updateSettingsPanel(statusPayload, dashboardPayload);
+    if (statusPayload) {
+      updateSettingsPanel(statusPayload, dashboardPayload);
+    }
     if (typeof state !== "undefined") {
       state.ui.loading = false;
       state.ui.error = null;
@@ -515,10 +526,19 @@ async function refreshLiveDashboard() {
     render();
   } catch (error) {
     LIVE_CLIENT.enabled = false;
+    const likelyMissingKeys = !statusPayload?.keys?.odds || !statusPayload?.keys?.balldontlie;
+    const baseMessage = likelyMissingKeys
+      ? "Live API keys missing. Showing cached data."
+      : "Live API sync failed. Showing cached data.";
+    const detail = error?.message ? ` ${error.message}` : "";
     if (typeof state !== "undefined") {
       state.ui.loading = false;
-      state.ui.error = "Live API sync failed. Showing cached data.";
+      state.ui.error = `${baseMessage}${detail}`.slice(0, 220);
       render();
+    }
+    const statusEl = document.getElementById("apiSettingsStatus");
+    if (statusEl) {
+      statusEl.textContent = baseMessage;
     }
   }
 }
@@ -542,9 +562,7 @@ async function bootLiveClient() {
   installSettingsEvents();
   window.addEventListener("dashboard:manual-refresh", refreshLiveDashboard);
   await refreshLiveDashboard();
-  if (LIVE_CLIENT.enabled) {
-    resetLivePollers();
-  }
+  resetLivePollers();
 }
 
 window.addEventListener("load", bootLiveClient);

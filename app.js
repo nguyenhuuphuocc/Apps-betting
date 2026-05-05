@@ -2082,6 +2082,36 @@ const state = {
   }
 };
 
+const SUPPORTED_SPORTS = [
+  "NBA",
+  "WNBA",
+  "MLB",
+  "NHL",
+  "NFL",
+  "NCAABB",
+  "EuroLeague",
+  "Soccer",
+  "Tennis",
+  "Golf",
+  "Boxing"
+];
+
+const SUPPORTED_LEAGUES = [
+  "NBA",
+  "WNBA",
+  "MLB",
+  "NHL",
+  "NFL",
+  "NCAABB",
+  "EuroLeague",
+  "FIFA World Cup",
+  "EPL",
+  "ATP Italian Open",
+  "WTA Italian Open",
+  "PGA Tour",
+  "Boxing"
+];
+
 const STORAGE_KEY = "professionalSportsBettingDashboard.v1";
 
 function americanToDecimal(odds) {
@@ -2192,7 +2222,14 @@ function loadSavedState() {
     if (saved.filters) state.filters = { ...state.filters, ...saved.filters };
     if (saved.bankroll) state.bankroll = { ...state.bankroll, ...saved.bankroll };
     if (saved.backtest) state.backtest = { ...state.backtest, ...saved.backtest };
-    if (saved.ui) state.ui = { ...state.ui, ...saved.ui };
+    if (saved.ui) {
+      state.ui = {
+        ...state.ui,
+        ...saved.ui,
+        loading: false,
+        error: null
+      };
+    }
     if (saved.tracker) {
       state.tracker = {
         bets: Array.isArray(saved.tracker.bets) ? saved.tracker.bets : [],
@@ -2210,6 +2247,11 @@ function persistDashboard() {
   state.tracker.lastSaved = savedAt;
 
   if (storage) {
+    const persistedUi = {
+      ...state.ui,
+      loading: false,
+      error: null
+    };
     const payload = {
       version: 1,
       savedAt,
@@ -2217,7 +2259,7 @@ function persistDashboard() {
       bankroll: state.bankroll,
       backtest: state.backtest,
       tracker: state.tracker,
-      ui: state.ui
+      ui: persistedUi
     };
     storage.setItem(STORAGE_KEY, JSON.stringify(payload));
   }
@@ -2274,13 +2316,13 @@ function hydrateFilters() {
   const betTypeFilter = document.getElementById("betTypeFilter");
   const riskFilter = document.getElementById("riskFilter");
 
-  const sports = [...new Set(DATA.games.map((game) => game.sport))].sort();
+  const sports = [...new Set([...SUPPORTED_SPORTS, ...DATA.games.map((game) => game.sport).filter(Boolean)])].sort();
   sportFilter.innerHTML = [
     `<option value="all">All sports</option>`,
     ...sports.map((sport) => `<option value="${sport}">${sport}</option>`)
   ].join("");
 
-  const leagues = [...new Set(DATA.games.map((game) => game.league))].sort();
+  const leagues = [...new Set([...SUPPORTED_LEAGUES, ...DATA.games.map((game) => game.league).filter(Boolean)])].sort();
   leagueFilter.innerHTML = [
     `<option value="all">All leagues</option>`,
     ...leagues.map((league) => `<option value="${league}">${league}</option>`)
