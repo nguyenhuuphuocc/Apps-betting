@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sports Betting Dashboard</title>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+    <link rel="preconnect" href="https://unpkg.com" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Dashboard filters">
+        <div class="brand-block">
+          <span class="brand-mark">EV</span>
+          <div>
+            <p class="eyebrow">Multi-sport slate</p>
+            <h1>Betting Desk</h1>
+          </div>
+        </div>
+
+        <div class="filter-stack">
+          <label>
+            <span>Sport</span>
+            <select id="sportFilter"></select>
+          </label>
+          <label>
+            <span>League</span>
+            <select id="leagueFilter"></select>
+          </label>
+          <label>
+            <span>Team</span>
+            <select id="teamFilter"></select>
+          </label>
+          <label>
+            <span>Player</span>
+            <select id="playerFilter"></select>
+          </label>
+          <label>
+            <span>Bet type</span>
+            <select id="betTypeFilter"></select>
+          </label>
+          <label>
+            <span>Risk</span>
+            <select id="riskFilter"></select>
+          </label>
+          <label>
+            <span>Confidence floor</span>
+            <input id="confidenceFilter" type="range" min="1" max="10" value="1" step="0.5" />
+            <output id="confidenceValue">1.0</output>
+          </label>
+          <label>
+            <span>Date from</span>
+            <input id="dateFilter" type="date" value="2026-05-05" />
+          </label>
+          <label>
+            <span>Home / away</span>
+            <select id="locationFilter">
+              <option value="all">All</option>
+              <option value="home">Home teams</option>
+              <option value="away">Away teams</option>
+            </select>
+          </label>
+          <label>
+            <span>Injuries</span>
+            <select id="injuryFilter">
+              <option value="all">All statuses</option>
+              <option value="available">Available</option>
+              <option value="monitor">Monitor</option>
+              <option value="out">Out</option>
+            </select>
+          </label>
+          <label class="check-row">
+            <input id="positiveEvOnly" type="checkbox" />
+            <span>+EV only</span>
+          </label>
+        </div>
+
+        <div class="bankroll-panel">
+          <div>
+            <p class="eyebrow">Bankroll</p>
+            <strong id="sidebarBankroll">$1,000</strong>
+          </div>
+          <div class="unit-grid">
+            <span>1u</span>
+            <strong id="unitValue">$10</strong>
+          </div>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Slate locked to Tuesday, May 5, 2026</p>
+            <h2>Professional Sports Betting Dashboard</h2>
+          </div>
+          <div class="top-actions">
+            <span id="liveSaveStatus" class="live-save-status">Local auto-save ready</span>
+            <button class="icon-button" id="resetFilters" title="Reset filters" aria-label="Reset filters">
+              <i data-lucide="rotate-ccw"></i>
+            </button>
+            <button class="icon-button" id="printView" title="Print dashboard" aria-label="Print dashboard">
+              <i data-lucide="printer"></i>
+            </button>
+          </div>
+        </header>
+
+        <section class="summary-strip" aria-label="Slate summary">
+          <div>
+            <span>Games</span>
+            <strong id="gameCount">2</strong>
+          </div>
+          <div>
+            <span>Recommended bets</span>
+            <strong id="recommendedCount">0</strong>
+          </div>
+          <div>
+            <span>Total exposure</span>
+            <strong id="totalExposure">0u</strong>
+          </div>
+          <div>
+            <span>Highest edge</span>
+            <strong id="highestEdge">0%</strong>
+          </div>
+        </section>
+
+        <nav class="tabs" aria-label="Dashboard sections">
+          <button class="tab-button active" data-target="mainDashboard">
+            <i data-lucide="layout-dashboard"></i>
+            Main
+          </button>
+          <button class="tab-button" data-target="playerDashboard">
+            <i data-lucide="users"></i>
+            Players
+          </button>
+          <button class="tab-button" data-target="predictionDashboard">
+            <i data-lucide="line-chart"></i>
+            Predictions
+          </button>
+          <button class="tab-button" data-target="historyDashboard">
+            <i data-lucide="history"></i>
+            History
+          </button>
+          <button class="tab-button" data-target="bankrollDashboard">
+            <i data-lucide="wallet-cards"></i>
+            Bankroll
+          </button>
+          <button class="tab-button" data-target="liveTrackerDashboard">
+            <i data-lucide="activity"></i>
+            Tracker
+          </button>
+          <button class="tab-button" data-target="backtestDashboard">
+            <i data-lucide="flask-conical"></i>
+            Backtest
+          </button>
+          <button class="tab-button" data-target="settingsDashboard">
+            <i data-lucide="settings"></i>
+            Settings
+          </button>
+        </nav>
+
+        <section id="mainDashboard" class="dashboard-section active">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Main dashboard</p>
+              <h3>Today + Future Games</h3>
+            </div>
+            <span id="asOfStamp"></span>
+          </div>
+          <div id="gameCards" class="game-grid"></div>
+          <div class="chart-grid">
+            <div class="chart-panel">
+              <div class="panel-heading">
+                <h4>Win Probability</h4>
+                <span>Model vs market</span>
+              </div>
+              <canvas id="winProbChart"></canvas>
+            </div>
+            <div class="chart-panel">
+              <div class="panel-heading">
+                <h4>Team Form</h4>
+                <span>Recent margins</span>
+              </div>
+              <canvas id="teamFormChart"></canvas>
+            </div>
+          </div>
+        </section>
+
+        <section id="playerDashboard" class="dashboard-section">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Player dashboard</p>
+              <h3>Key Player Props</h3>
+            </div>
+          </div>
+          <div id="playerCards" class="player-grid"></div>
+          <div class="chart-grid">
+            <div class="chart-panel wide">
+              <div class="panel-heading">
+                <h4>Player Stat Trend</h4>
+                <span id="playerTrendName"></span>
+              </div>
+              <canvas id="playerTrendChart"></canvas>
+            </div>
+            <div class="chart-panel">
+              <div class="panel-heading">
+                <h4>Minutes Trend</h4>
+                <span>Last 5 games</span>
+              </div>
+              <canvas id="minutesTrendChart"></canvas>
+            </div>
+          </div>
+        </section>
+
+        <section id="predictionDashboard" class="dashboard-section">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Betting prediction dashboard</p>
+              <h3>Market Edges</h3>
+            </div>
+          </div>
+          <div class="table-shell">
+            <table>
+              <thead>
+                <tr>
+                  <th>Bet</th>
+                  <th>Odds</th>
+                  <th>Probability</th>
+                  <th>EV</th>
+                  <th>Confidence</th>
+                  <th>Risk</th>
+                  <th>Unit</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              <tbody id="predictionRows"></tbody>
+            </table>
+          </div>
+          <div class="chart-grid">
+            <div class="chart-panel">
+              <div class="panel-heading">
+                <h4>Odds Movement</h4>
+                <span>Open to current</span>
+              </div>
+              <canvas id="oddsMovementChart"></canvas>
+            </div>
+            <div class="chart-panel">
+              <div class="panel-heading">
+                <h4>Confidence vs Results</h4>
+                <span>Tracked sample</span>
+              </div>
+              <canvas id="confidenceChart"></canvas>
+            </div>
+          </div>
+        </section>
+
+        <section id="historyDashboard" class="dashboard-section">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Historical data dashboard</p>
+              <h3>Matchup and Betting History</h3>
+            </div>
+          </div>
+          <div id="historyCards" class="history-grid"></div>
+          <div class="chart-panel wide">
+            <div class="panel-heading">
+              <h4>Profit / Loss Over Time</h4>
+              <span>Sample tracker</span>
+            </div>
+            <canvas id="profitChart"></canvas>
+          </div>
+        </section>
+
+        <section id="bankrollDashboard" class="dashboard-section">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Bankroll tracker</p>
+              <h3>Risk Management</h3>
+            </div>
+          </div>
+          <div class="bankroll-grid">
+            <form id="bankrollForm" class="bankroll-form">
+              <label>
+                <span>Starting bankroll</span>
+                <input id="startingBankroll" type="number" min="100" value="1000" />
+              </label>
+              <label>
+                <span>Current bankroll</span>
+                <input id="currentBankroll" type="number" min="0" value="1000" />
+              </label>
+              <label>
+                <span>Loss streak</span>
+                <input id="lossStreak" type="number" min="0" value="0" />
+              </label>
+              <label>
+                <span>Max exposure today</span>
+                <input id="maxExposure" type="number" min="0.5" max="5" step="0.5" value="3" />
+              </label>
+            </form>
+            <div id="bankrollStats" class="bankroll-stats"></div>
+          </div>
+          <div class="chart-grid">
+            <div class="chart-panel">
+              <div class="panel-heading">
+                <h4>Bet Type Performance</h4>
+                <span>Units won/lost</span>
+              </div>
+              <canvas id="betTypeChart"></canvas>
+            </div>
+            <div class="chart-panel">
+              <div class="panel-heading">
+                <h4>Unit Allocation</h4>
+                <span>Recommended bets</span>
+              </div>
+              <canvas id="unitChart"></canvas>
+            </div>
+          </div>
+        </section>
+
+        <section id="liveTrackerDashboard" class="dashboard-section">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Live tracking</p>
+              <h3>Bet Tracker</h3>
+            </div>
+            <span>Open, settle, and auto-save bets locally.</span>
+          </div>
+          <div class="tracker-grid">
+            <form id="trackerForm" class="tracker-form">
+              <label>
+                <span>Date</span>
+                <input id="trackerDate" type="date" value="2026-05-05" required />
+              </label>
+              <label>
+                <span>Sport</span>
+                <select id="trackerSport">
+                  <option value="NBA">NBA</option>
+                  <option value="Soccer">Soccer</option>
+                </select>
+              </label>
+              <label>
+                <span>League</span>
+                <input id="trackerLeague" type="text" value="NBA Playoffs" />
+              </label>
+              <label>
+                <span>Bet type</span>
+                <select id="trackerBetType">
+                  <option value="Moneyline">Moneyline</option>
+                  <option value="Spread">Spread</option>
+                  <option value="Total" selected>Total</option>
+                  <option value="Player prop">Player prop</option>
+                  <option value="Same-game parlay">Same-game parlay</option>
+                </select>
+              </label>
+              <label class="tracker-wide">
+                <span>Pick</span>
+                <input id="trackerPick" type="text" placeholder="Lakers/Thunder under 213.5" required />
+              </label>
+              <label>
+                <span>Odds</span>
+                <input id="trackerOdds" type="number" step="1" value="-110" required />
+              </label>
+              <label>
+                <span>Model probability</span>
+                <input id="trackerProbability" type="number" min="1" max="99" step="0.1" value="55" required />
+              </label>
+              <label>
+                <span>Confidence</span>
+                <input id="trackerConfidence" type="number" min="1" max="10" step="0.1" value="5.5" required />
+              </label>
+              <label>
+                <span>Risk</span>
+                <select id="trackerRisk">
+                  <option value="Low">Low</option>
+                  <option value="Medium" selected>Medium</option>
+                  <option value="High">High</option>
+                </select>
+              </label>
+              <label>
+                <span>Stake units</span>
+                <input id="trackerStake" type="number" min="0.25" max="5" step="0.25" value="0.5" required />
+              </label>
+              <label>
+                <span>Status</span>
+                <select id="trackerStatus">
+                  <option value="Open">Open</option>
+                  <option value="Win">Win</option>
+                  <option value="Loss">Loss</option>
+                  <option value="Push">Push</option>
+                </select>
+              </label>
+              <div class="tracker-actions">
+                <button type="submit">Add bet</button>
+                <button type="button" id="clearTrackerForm">Clear form</button>
+                <span id="trackerFormStatus"></span>
+              </div>
+            </form>
+            <div id="trackerStats" class="tracker-stats"></div>
+          </div>
+
+          <div class="tracker-tools">
+            <div class="panel-heading">
+              <h4>Import / Export Ledger</h4>
+              <span>CSV headers: date,sport,league,type,pick,odds,probability,confidence,stake,status</span>
+            </div>
+            <textarea id="trackerCsv" spellcheck="false" placeholder="2026-05-05,NBA,NBA Playoffs,Total,Lakers/Thunder under 213.5,-110,55,6.2,0.75,Open"></textarea>
+            <div class="tracker-actions">
+              <button type="button" id="exportTrackerCsv">Export CSV</button>
+              <button type="button" id="importTrackerCsv">Import CSV</button>
+              <button type="button" id="clearTrackerLedger">Clear ledger</button>
+              <span id="trackerCsvStatus"></span>
+            </div>
+          </div>
+
+          <div class="table-shell tracker-table">
+            <div class="panel-heading">
+              <h4>Open Bets</h4>
+              <span>Exposure still at risk</span>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Bet</th>
+                  <th>Odds</th>
+                  <th>Model</th>
+                  <th>Stake</th>
+                  <th>EV</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="openTrackerRows"></tbody>
+            </table>
+          </div>
+
+          <div class="table-shell tracker-table">
+            <div class="panel-heading">
+              <h4>Settled Bets</h4>
+              <span>Feeds bankroll and backtest</span>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Bet</th>
+                  <th>Odds</th>
+                  <th>Result</th>
+                  <th>P/L</th>
+                  <th>Confidence</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="settledTrackerRows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="backtestDashboard" class="dashboard-section">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Backtest lab</p>
+              <h3>Strategy Backtest</h3>
+            </div>
+            <span>Sample ledger; paste CSV to replace.</span>
+          </div>
+          <div class="backtest-grid">
+            <form id="backtestForm" class="backtest-form">
+              <label>
+                <span>Sport</span>
+                <select id="backtestSport">
+                  <option value="all">All sports</option>
+                  <option value="NBA">NBA</option>
+                  <option value="Soccer">Soccer</option>
+                </select>
+              </label>
+              <label>
+                <span>Strategy</span>
+                <select id="backtestStrategy">
+                  <option value="all-positive">All +EV bets</option>
+                  <option value="totals">Totals only</option>
+                  <option value="props">Player props only</option>
+                  <option value="high-confidence">High confidence</option>
+                </select>
+              </label>
+              <label>
+                <span>Min confidence</span>
+                <input id="backtestConfidence" type="range" min="1" max="10" step="0.1" value="5.5" />
+                <output id="backtestConfidenceValue">5.5</output>
+              </label>
+              <label>
+                <span>Min EV edge</span>
+                <input id="backtestEdge" type="range" min="-5" max="15" step="0.5" value="2" />
+                <output id="backtestEdgeValue">2.0%</output>
+              </label>
+              <label>
+                <span>Max unit size</span>
+                <input id="backtestMaxUnit" type="number" min="0.25" max="3" step="0.25" value="1" />
+              </label>
+              <label>
+                <span>Backtest bankroll</span>
+                <input id="backtestBankroll" type="number" min="100" step="50" value="1000" />
+              </label>
+            </form>
+            <div id="backtestStats" class="backtest-stats"></div>
+          </div>
+
+          <div class="backtest-import">
+            <div class="panel-heading">
+              <h4>Paste Historical Bets</h4>
+              <span>CSV headers: date,sport,league,type,pick,odds,probability,confidence,stake,result</span>
+            </div>
+            <textarea id="backtestCsv" spellcheck="false" placeholder="2026-04-22,NBA,NBA Playoffs,Total,Knicks/Hawks under 218.5,-110,55.2,6.1,0.75,win"></textarea>
+            <div class="backtest-actions">
+              <button type="button" id="loadBacktestCsv">Load CSV</button>
+              <button type="button" id="resetBacktestCsv">Reset sample</button>
+              <span id="backtestCsvStatus"></span>
+            </div>
+          </div>
+
+          <div class="chart-grid">
+            <div class="chart-panel">
+              <div class="panel-heading">
+                <h4>Backtest Equity Curve</h4>
+                <span>Units over time</span>
+              </div>
+              <canvas id="backtestEquityChart"></canvas>
+            </div>
+            <div class="chart-panel">
+              <div class="panel-heading">
+                <h4>Backtest By Bet Type</h4>
+                <span>Units won/lost</span>
+              </div>
+              <canvas id="backtestTypeChart"></canvas>
+            </div>
+            <div class="chart-panel wide">
+              <div class="panel-heading">
+                <h4>Calibration</h4>
+                <span>Predicted probability vs actual hit rate</span>
+              </div>
+              <canvas id="backtestCalibrationChart"></canvas>
+            </div>
+          </div>
+
+          <div id="backtestVerdict" class="verdict-card"></div>
+          <div class="table-shell">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Bet</th>
+                  <th>Odds</th>
+                  <th>Model</th>
+                  <th>EV</th>
+                  <th>Stake</th>
+                  <th>Result</th>
+                  <th>P/L</th>
+                </tr>
+              </thead>
+              <tbody id="backtestRows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="settingsDashboard" class="dashboard-section">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Platform settings</p>
+              <h3>Live Config</h3>
+            </div>
+            <span>API keys stay in backend `.env`; this page only updates runtime settings.</span>
+          </div>
+          <div class="settings-grid">
+            <form id="apiSettingsForm" class="settings-form">
+              <label>
+                <span>Starting bankroll</span>
+                <input id="apiBankrollStarting" type="number" min="100" step="50" value="1000" />
+              </label>
+              <label>
+                <span>Current bankroll</span>
+                <input id="apiBankrollCurrent" type="number" min="0" step="50" value="1000" />
+              </label>
+              <label>
+                <span>Unit % of bankroll</span>
+                <input id="apiUnitPercent" type="number" min="0.25" max="3" step="0.25" value="1" />
+              </label>
+              <label>
+                <span>Max single bet %</span>
+                <input id="apiMaxSinglePct" type="number" min="1" max="5" step="0.5" value="5" />
+              </label>
+              <label>
+                <span>Live refresh seconds</span>
+                <input id="apiLiveSeconds" type="number" min="15" max="120" step="5" value="30" />
+              </label>
+              <label>
+                <span>Odds refresh minutes</span>
+                <input id="apiOddsMinutes" type="number" min="5" max="30" step="1" value="10" />
+              </label>
+              <label>
+                <span>Schedule refresh hours</span>
+                <input id="apiScheduleHours" type="number" min="4" max="24" step="1" value="6" />
+              </label>
+              <label>
+                <span>Injury refresh minutes</span>
+                <input id="apiInjuryMinutes" type="number" min="10" max="60" step="5" value="20" />
+              </label>
+              <div class="settings-actions">
+                <button type="submit">Save settings</button>
+                <button type="button" id="manualSync">Run sync now</button>
+                <span id="apiSettingsStatus"></span>
+              </div>
+            </form>
+            <div id="apiStatusCards" class="settings-status"></div>
+          </div>
+          <div class="history-card">
+            <h4>Safety</h4>
+            <ul id="safetyList">
+              <li>Predictions are not guaranteed.</li>
+              <li>Bet responsibly.</li>
+              <li>This tool is for analysis and education only.</li>
+              <li>No bet is recommended unless positive expected value is detected.</li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="final-output" aria-label="Final output">
+          <div class="final-column">
+          <div class="section-heading compact">
+            <div>
+              <p class="eyebrow">Final output</p>
+              <h3>Best Bets Today + Upcoming</h3>
+            </div>
+            </div>
+            <div id="bestBets" class="pick-list"></div>
+          </div>
+          <div class="final-column avoid">
+            <div class="section-heading compact">
+              <div>
+                <p class="eyebrow">Discipline list</p>
+                <h3>Bets to Avoid</h3>
+              </div>
+            </div>
+            <div id="avoidBets" class="pick-list"></div>
+          </div>
+        </section>
+
+        <footer class="source-footer">
+          <strong>Source notes:</strong>
+          <a href="https://www.basketball-reference.com/leagues/NBA_2026_ratings.html">Basketball Reference ratings</a>
+          <a href="https://www.covers.com/sport/basketball/nba/matchup/379383/odds">Covers CLE-DET odds</a>
+          <a href="https://www.oddschecker.com/us/basketball/nba/los-angeles-lakers-at-oklahoma-city-thunder/spread">OddsChecker LAL-OKC odds</a>
+          <a href="https://www.nba.com/news/2026-nba-playoffs-series-preview-thunder-lakers">NBA.com matchup preview</a>
+          <a href="https://www.uefa.com/uefachampionsleague/news/02a4-2063e22b19d9-14f7369cb6fd-1000--champions-league-semi-final-ties-and-dates-confirmed/">UEFA UCL dates</a>
+          <a href="https://www.oddschecker.com/us/soccer/premier-league/liverpool-v-chelsea/moneyline">OddsChecker EPL odds</a>
+          <a href="https://www.premierleague.com/en/news/4637635/fixture-changes-for-matchweek-37-and-man-city-v-crystal-palace-confirmed/">Premier League fixture updates</a>
+        </footer>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+    <script src="live-client.js"></script>
+  </body>
+</html>
