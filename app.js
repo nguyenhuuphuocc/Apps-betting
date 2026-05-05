@@ -2051,39 +2051,84 @@ const state = {
     maxExposure: 3
   },
   backtest: {
+    fromDate: "2026-04-01",
+    toDate: DATA.slateDate,
     sport: "all",
-    strategy: "all-positive",
+    preset: "balanced",
+    league: "all",
+    team: "all",
+    betType: "all",
     minConfidence: 5.5,
     minEdge: 2,
     maxUnit: 1,
+    maxBetsDay: 5,
+    maxDailyExposure: 8,
+    resultFilter: "all",
+    skipInjuryRisk: true,
     bankroll: DATA.defaultBankroll,
     customRows: null
   },
   tracker: {
     bets: [],
     lastSaved: null
+  },
+  ui: {
+    theme: "dark",
+    sidebarCollapsed: false,
+    loading: false,
+    error: null,
+    oddsFormat: "american",
+    compactMode: false
   }
 };
 
 const STORAGE_KEY = "professionalSportsBettingDashboard.v1";
 
 function americanToDecimal(odds) {
-  return odds > 0 ? 1 + odds / 100 : 1 + 100 / Math.abs(odds);
+  const price = Number(odds);
+  if (!Number.isFinite(price) || price === 0) return null;
+  return price > 0 ? 1 + price / 100 : 1 + 100 / Math.abs(price);
 }
 
 function impliedProbability(odds) {
-  return odds > 0 ? 100 / (odds + 100) : Math.abs(odds) / (Math.abs(odds) + 100);
+  const price = Number(odds);
+  if (!Number.isFinite(price) || price === 0) return null;
+  return price > 0 ? 100 / (price + 100) : Math.abs(price) / (Math.abs(price) + 100);
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function safeNumber(value, fallback = 0) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function safeProbability(value) {
+  const probability = safeNumber(value, 50);
+  return clamp(probability, 5, 95);
 }
 
 function evPercent(probability, odds) {
   const decimal = americanToDecimal(odds);
-  const p = probability / 100;
-  return (p * (decimal - 1) - (1 - p)) * 100;
+  if (!decimal) return 0;
+  const p = safeProbability(probability) / 100;
+  const raw = (p * (decimal - 1) - (1 - p)) * 100;
+  if (!Number.isFinite(raw)) return 0;
+  return clamp(raw, -100, 100);
 }
 
 function formatOdds(odds) {
-  if (odds === null || odds === undefined) return "TBD";
-  return odds > 0 ? `+${odds}` : `${odds}`;
+  if (odds === null || odds === undefined || !Number.isFinite(Number(odds))) return "Market unavailable";
+  const numeric = Number(odds);
+  if (state?.ui?.oddsFormat === "decimal") return americanToDecimal(numeric)?.toFixed(2) || "Market unavailable";
+  if (state?.ui?.oddsFormat === "fractional") {
+    const decimal = americanToDecimal(numeric);
+    if (!decimal) return "Market unavailable";
+    return `${(decimal - 1).toFixed(2)}/1`;
+  }
+  return numeric > 0 ? `+${numeric}` : `${numeric}`;
 }
 
 function money(value) {
@@ -2095,7 +2140,8 @@ function money(value) {
 }
 
 function pct(value, digits = 1) {
-  return `${value.toFixed(digits)}%`;
+  const numeric = safeNumber(value, 0);
+  return `${numeric.toFixed(digits)}%`;
 }
 
 function getGame(id) {
@@ -2111,7 +2157,7 @@ function getPrediction(id) {
 }
 
 function riskClass(risk) {
-  return `risk-${risk.toLowerCase()}`;
+  return `risk-${String(risk || "medium").toLowerCase()}`;
 }
 
 function statusClass(status) {
@@ -2146,6 +2192,7 @@ function loadSavedState() {
     if (saved.filters) state.filters = { ...state.filters, ...saved.filters };
     if (saved.bankroll) state.bankroll = { ...state.bankroll, ...saved.bankroll };
     if (saved.backtest) state.backtest = { ...state.backtest, ...saved.backtest };
+    if (saved.ui) state.ui = { ...state.ui, ...saved.ui };
     if (saved.tracker) {
       state.tracker = {
         bets: Array.isArray(saved.tracker.bets) ? saved.tracker.bets : [],
@@ -2169,7 +2216,8 @@ function persistDashboard() {
       filters: state.filters,
       bankroll: state.bankroll,
       backtest: state.backtest,
-      tracker: state.tracker
+      tracker: state.tracker,
+      ui: state.ui
     };
     storage.setItem(STORAGE_KEY, JSON.stringify(payload));
   }
@@ -2193,6 +2241,18 @@ function updateSaveStatus(savedAt = state.tracker.lastSaved) {
   });
   element.textContent = `Saved locally ${time}`;
   element.classList.remove("save-warning");
+}
+
+function applyUiMode() {
+  document.body.setAttribute("data-theme", state.ui.theme === "light" ? "light" : "dark");
+  document.body.classList.toggle("compact-mode", Boolean(state.ui.compactMode));
+  const shell = document.querySelector(".app-shell");
+  if (shell) shell.classList.toggle("sidebar-collapsed", Boolean(state.ui.sidebarCollapsed));
+  const themeButton = document.getElementById("themeToggle");
+  if (themeButton) {
+    themeButton.title = state.ui.theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
+    themeButton.setAttribute("aria-label", themeButton.title);
+  }
 }
 
 function adjustedUnits(units) {
@@ -2305,6 +2365,27 @@ function bindEvents() {
 
   document.getElementById("printView").addEventListener("click", () => window.print());
 
+  document.getElementById("themeToggle")?.addEventListener("click", () => {
+    state.ui.theme = state.ui.theme === "dark" ? "light" : "dark";
+    applyUiMode();
+    render();
+  });
+
+  document.getElementById("sidebarCollapse")?.addEventListener("click", () => {
+    state.ui.sidebarCollapsed = !state.ui.sidebarCollapsed;
+    applyUiMode();
+  });
+
+  document.getElementById("manualRefreshTop")?.addEventListener("click", () => {
+    state.ui.loading = true;
+    render();
+    window.dispatchEvent(new CustomEvent("dashboard:manual-refresh"));
+    window.setTimeout(() => {
+      state.ui.loading = false;
+      render();
+    }, 900);
+  });
+
   document.querySelectorAll(".tab-button").forEach((button) => {
     button.addEventListener("click", () => {
       activateTab(button.dataset.target);
@@ -2329,20 +2410,36 @@ function bindEvents() {
   });
 
   const backtestMap = {
+    backtestFromDate: "fromDate",
+    backtestToDate: "toDate",
     backtestSport: "sport",
-    backtestStrategy: "strategy",
+    backtestPreset: "preset",
+    backtestLeague: "league",
+    backtestTeam: "team",
+    backtestBetType: "betType",
     backtestConfidence: "minConfidence",
     backtestEdge: "minEdge",
     backtestMaxUnit: "maxUnit",
-    backtestBankroll: "bankroll"
+    backtestBankroll: "bankroll",
+    backtestMaxBetsDay: "maxBetsDay",
+    backtestMaxDailyExposure: "maxDailyExposure",
+    backtestResultFilter: "resultFilter",
+    backtestSkipInjuryRisk: "skipInjuryRisk"
   };
 
   Object.entries(backtestMap).forEach(([id, key]) => {
-    document.getElementById(id).addEventListener("input", (event) => {
-      const value = ["minConfidence", "minEdge", "maxUnit", "bankroll"].includes(key)
-        ? Number(event.target.value || 0)
-        : event.target.value;
+    const element = document.getElementById(id);
+    if (!element) return;
+    const eventName = element.tagName === "SELECT" || element.type === "checkbox" ? "change" : "input";
+    element.addEventListener(eventName, (event) => {
+      const numericKeys = new Set(["minConfidence", "minEdge", "maxUnit", "bankroll", "maxBetsDay", "maxDailyExposure"]);
+      const value = key === "skipInjuryRisk"
+        ? Boolean(event.target.checked)
+        : numericKeys.has(key)
+          ? Number(event.target.value || 0)
+          : event.target.value;
       state.backtest[key] = value;
+      if (key === "preset") applyBacktestPreset(value);
       syncBacktestOutputs();
       render();
     });
@@ -2369,6 +2466,78 @@ function bindEvents() {
     status.textContent = trackerBacktestRows().length ? "Tracked ledger restored" : "Sample ledger restored";
     status.className = "status-ok";
     render();
+  });
+
+  document.getElementById("exportBacktestCsv")?.addEventListener("click", () => {
+    const rows = backtestMetrics(filteredBacktestRows()).timeline;
+    const headers = [
+      "date",
+      "game",
+      "betType",
+      "pick",
+      "odds",
+      "stake",
+      "result",
+      "profit",
+      "confidence",
+      "ev",
+      "clv",
+      "notes"
+    ];
+    const csvRows = rows.map((row) => [
+      row.date,
+      row.matchup || row.league || "N/A",
+      row.betType || row.type || "",
+      row.pick,
+      row.odds,
+      row.stake,
+      row.outcome,
+      row.profit,
+      row.confidence,
+      row.edge,
+      row.clv ?? "",
+      row.note || ""
+    ]);
+    document.getElementById("backtestCsv").value = [headers, ...csvRows].map((r) => r.map(csvEscape).join(",")).join("\n");
+    document.getElementById("backtestCsvStatus").textContent = `Exported ${rows.length} backtest rows to CSV`;
+  });
+
+  document.getElementById("exportBacktestJson")?.addEventListener("click", () => {
+    const rows = backtestMetrics(filteredBacktestRows()).timeline;
+    document.getElementById("backtestCsv").value = JSON.stringify(rows, null, 2);
+    document.getElementById("backtestCsvStatus").textContent = `Exported ${rows.length} backtest rows to JSON`;
+  });
+
+  document.getElementById("runApiBacktest")?.addEventListener("click", async () => {
+    const status = document.getElementById("backtestCsvStatus");
+    status.textContent = "Running server backtest...";
+    try {
+      const payload = {
+        from: state.backtest.fromDate,
+        to: state.backtest.toDate,
+        label: `ui-${Date.now()}`,
+        sport: state.backtest.sport,
+        league: state.backtest.league,
+        team: state.backtest.team,
+        betType: state.backtest.betType,
+        minConfidence: state.backtest.minConfidence,
+        minEv: state.backtest.minEdge,
+        maxBetsPerDay: state.backtest.maxBetsDay,
+        maxDailyExposureUnits: state.backtest.maxDailyExposure,
+        maxUnitSize: state.backtest.maxUnit,
+        skipInjuryUncertainty: state.backtest.skipInjuryRisk
+      };
+      const response = await fetch("/api/backtest/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) throw new Error("Backtest API request failed");
+      const result = await response.json();
+      status.textContent = `Server backtest complete: ${result.total_bets || 0} bets, ROI ${pct(result.roi || 0, 2)}`;
+    } catch (error) {
+      status.textContent = "Server backtest failed. Using local backtest sample.";
+    }
   });
 
   document.getElementById("trackerForm").addEventListener("submit", (event) => {
@@ -2433,13 +2602,72 @@ function syncBankrollControls() {
 }
 
 function syncBacktestControls() {
+  const teamSelect = document.getElementById("backtestTeam");
+  if (teamSelect) {
+    teamSelect.innerHTML = [
+      `<option value="all">All teams</option>`,
+      ...Object.values(DATA.teams)
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((team) => `<option value="${team.abbr}">${team.name}</option>`)
+    ].join("");
+  }
+  document.getElementById("backtestFromDate").value = state.backtest.fromDate;
+  document.getElementById("backtestToDate").value = state.backtest.toDate;
   document.getElementById("backtestSport").value = state.backtest.sport;
-  document.getElementById("backtestStrategy").value = state.backtest.strategy;
+  document.getElementById("backtestPreset").value = state.backtest.preset;
+  document.getElementById("backtestLeague").value = state.backtest.league;
+  document.getElementById("backtestTeam").value = state.backtest.team;
+  document.getElementById("backtestBetType").value = state.backtest.betType;
   document.getElementById("backtestConfidence").value = state.backtest.minConfidence;
   document.getElementById("backtestEdge").value = state.backtest.minEdge;
   document.getElementById("backtestMaxUnit").value = state.backtest.maxUnit;
   document.getElementById("backtestBankroll").value = state.backtest.bankroll;
+  document.getElementById("backtestMaxBetsDay").value = state.backtest.maxBetsDay;
+  document.getElementById("backtestMaxDailyExposure").value = state.backtest.maxDailyExposure;
+  document.getElementById("backtestResultFilter").value = state.backtest.resultFilter;
+  document.getElementById("backtestSkipInjuryRisk").checked = Boolean(state.backtest.skipInjuryRisk);
   syncBacktestOutputs();
+}
+
+function applyBacktestPreset(preset) {
+  if (preset === "conservative") {
+    state.backtest.minConfidence = 7;
+    state.backtest.minEdge = 4;
+    state.backtest.maxUnit = 1;
+    state.backtest.maxBetsDay = 3;
+    state.backtest.maxDailyExposure = 4;
+  } else if (preset === "aggressive") {
+    state.backtest.minConfidence = 5.5;
+    state.backtest.minEdge = 2;
+    state.backtest.maxUnit = 2.5;
+    state.backtest.maxBetsDay = 8;
+    state.backtest.maxDailyExposure = 12;
+  } else if (preset === "props") {
+    state.backtest.betType = "Player prop";
+    state.backtest.minConfidence = 6;
+    state.backtest.minEdge = 3;
+  } else if (preset === "moneyline") {
+    state.backtest.betType = "Moneyline";
+    state.backtest.minConfidence = 6;
+    state.backtest.minEdge = 2.5;
+  } else if (preset === "spread") {
+    state.backtest.betType = "Spread";
+    state.backtest.minConfidence = 6;
+    state.backtest.minEdge = 2.5;
+  } else if (preset === "totals") {
+    state.backtest.betType = "Total";
+    state.backtest.minConfidence = 5.8;
+    state.backtest.minEdge = 2.8;
+  } else if (preset === "balanced") {
+    state.backtest.betType = "all";
+    state.backtest.minConfidence = 6;
+    state.backtest.minEdge = 3;
+    state.backtest.maxUnit = 1.5;
+    state.backtest.maxBetsDay = 5;
+    state.backtest.maxDailyExposure = 8;
+  }
+  syncBacktestControls();
 }
 
 function activateTab(targetId) {
@@ -2556,11 +2784,17 @@ function normalizeBacktestRow(raw, rowNumber = 0) {
     betType: raw.bettype || raw.betType || raw.type || "Total",
     pick: raw.pick,
     odds,
-    modelProbability,
+    modelProbability: safeProbability(modelProbability),
     confidence,
     stakeUnits,
     result,
-    profitUnits: Number.isFinite(profitUnits) ? profitUnits : Number(resultText)
+    profitUnits: Number.isFinite(profitUnits) ? profitUnits : Number(resultText),
+    clv: Number(raw.clv ?? raw.clv_pct ?? raw.closinglinevalue),
+    note: raw.note || raw.notes || "",
+    injuryUncertain: String(raw.injuryuncertain ?? raw.injuryRisk ?? "").toLowerCase() === "true",
+    predictionTime: raw.predictiontime || raw.predictionTime || null,
+    gameStart: raw.gamestart || raw.gameStart || null,
+    matchup: raw.game || raw.matchup || null
   };
 }
 
@@ -2590,7 +2824,7 @@ function normalizeTrackedRow(raw, rowNumber = 0) {
     betType: raw.bettype || raw.betType || raw.type || "Total",
     pick: raw.pick,
     odds,
-    modelProbability,
+    modelProbability: safeProbability(modelProbability),
     confidence,
     risk: raw.risk || "Medium",
     stakeUnits,
@@ -2685,6 +2919,7 @@ function trackerBacktestRows() {
       date: bet.date,
       sport: bet.sport,
       league: bet.league,
+      matchup: bet.league,
       betType: bet.betType,
       pick: bet.pick,
       odds: bet.odds,
@@ -2810,13 +3045,13 @@ function backtestSourceRows() {
 }
 
 function backtestEdge(row) {
-  return evPercent(row.modelProbability, row.odds);
+  return evPercent(safeProbability(row.modelProbability), row.odds);
 }
 
 function backtestStake(row) {
   const stake = Number(row.stakeUnits ?? row.units ?? 0);
-  const maxUnit = Number(state.backtest.maxUnit || stake);
-  return Math.max(0, Math.min(stake, maxUnit));
+  const maxUnit = Number(state.backtest.maxUnit || stake || 0);
+  return clamp(Math.max(0, stake), 0, Math.min(maxUnit, 5));
 }
 
 function backtestProfit(row) {
@@ -2833,21 +3068,59 @@ function backtestProfit(row) {
 }
 
 function filteredBacktestRows() {
-  return backtestSourceRows()
-    .filter((row) => {
-      const edge = backtestEdge(row);
-      const type = row.betType || row.type;
-      if (state.backtest.sport !== "all" && row.sport !== state.backtest.sport) return false;
-      if (row.confidence < state.backtest.minConfidence) return false;
-      if (edge < state.backtest.minEdge) return false;
-      if (state.backtest.strategy === "all-positive" && edge <= 0) return false;
-      if (state.backtest.strategy === "totals" && type !== "Total") return false;
-      if (state.backtest.strategy === "props" && type !== "Player prop") return false;
-      if (state.backtest.strategy === "high-confidence" && row.confidence < 7) return false;
-      return true;
-    })
+  const sorted = backtestSourceRows()
     .slice()
-    .sort((a, b) => a.date.localeCompare(b.date));
+    .sort((a, b) => `${a.date} ${a.predictionTime || ""}`.localeCompare(`${b.date} ${b.predictionTime || ""}`));
+
+  const selected = [];
+  const dailyCount = new Map();
+  const dailyExposure = new Map();
+
+  for (const row of sorted) {
+    const edge = backtestEdge(row);
+    const type = row.betType || row.type;
+    const date = row.date || "";
+
+    if (state.backtest.fromDate && date < state.backtest.fromDate) continue;
+    if (state.backtest.toDate && date > state.backtest.toDate) continue;
+    if (state.backtest.sport !== "all" && row.sport !== state.backtest.sport) continue;
+    if (state.backtest.league !== "all" && String(row.league || "") !== String(state.backtest.league)) continue;
+    if (
+      state.backtest.team !== "all" &&
+      !String(row.pick || "")
+        .toLowerCase()
+        .includes(String(state.backtest.team).toLowerCase())
+    ) {
+      continue;
+    }
+    if (state.backtest.betType !== "all" && String(type) !== String(state.backtest.betType)) continue;
+    if (Number(row.confidence || 0) < state.backtest.minConfidence) continue;
+    if (edge < state.backtest.minEdge || edge <= 0) continue;
+    if (state.backtest.skipInjuryRisk && row.injuryUncertain) continue;
+
+    if (row.predictionTime && row.gameStart) {
+      if (new Date(row.predictionTime).getTime() > new Date(row.gameStart).getTime()) continue;
+    }
+
+    if (state.backtest.resultFilter !== "all") {
+      const outcome = String(row.result || "").toLowerCase();
+      if (outcome !== state.backtest.resultFilter) continue;
+    }
+
+    const stake = backtestStake(row);
+    if (stake <= 0) continue;
+
+    const usedCount = dailyCount.get(date) || 0;
+    const usedExposure = dailyExposure.get(date) || 0;
+    if (usedCount >= state.backtest.maxBetsDay) continue;
+    if (usedExposure + stake > state.backtest.maxDailyExposure) continue;
+
+    dailyCount.set(date, usedCount + 1);
+    dailyExposure.set(date, round(usedExposure + stake, 2));
+    selected.push(row);
+  }
+
+  return selected;
 }
 
 function backtestMetrics(rows) {
@@ -2860,23 +3133,41 @@ function backtestMetrics(rows) {
   let pushes = 0;
   let edgeTotal = 0;
   let oddsTotal = 0;
+  let confidenceTotal = 0;
+  let brierTotal = 0;
+  let brierCount = 0;
+  let clvTotal = 0;
+  let clvCount = 0;
 
   const timeline = rows.map((row) => {
     const profit = backtestProfit(row);
     const stake = backtestStake(row);
     const edge = backtestEdge(row);
     const outcome = row.result === "settled" ? (profit > 0 ? "win" : profit < 0 ? "loss" : "push") : row.result;
+    const modelProb = safeProbability(row.modelProbability);
 
     runningUnits += profit;
     peakUnits = Math.max(peakUnits, runningUnits);
-    maxDrawdown = Math.min(maxDrawdown, runningUnits - peakUnits);
+    const drawdown = runningUnits - peakUnits;
+    maxDrawdown = Math.min(maxDrawdown, drawdown);
     totalStaked += stake;
     edgeTotal += edge;
     oddsTotal += row.odds;
+    confidenceTotal += Number(row.confidence || 0);
+
+    if (Number.isFinite(Number(row.clv))) {
+      clvTotal += Number(row.clv);
+      clvCount += 1;
+    }
 
     if (outcome === "win") wins += 1;
     if (outcome === "loss") losses += 1;
     if (outcome === "push") pushes += 1;
+    if (outcome === "win" || outcome === "loss") {
+      const actual = outcome === "win" ? 1 : 0;
+      brierTotal += (modelProb / 100 - actual) ** 2;
+      brierCount += 1;
+    }
 
     return {
       ...row,
@@ -2884,7 +3175,10 @@ function backtestMetrics(rows) {
       stake,
       profit,
       outcome,
-      runningUnits
+      runningUnits,
+      drawdown,
+      modelProb,
+      rollingWinRate: wins + losses ? (wins / (wins + losses)) * 100 : 0
     };
   });
 
@@ -2903,6 +3197,19 @@ function backtestMetrics(rows) {
     hitRate: decided ? (wins / decided) * 100 : 0,
     avgEdge: rows.length ? edgeTotal / rows.length : 0,
     avgOdds: rows.length ? oddsTotal / rows.length : 0,
+    avgConfidence: rows.length ? confidenceTotal / rows.length : 0,
+    avgEv: rows.length ? edgeTotal / rows.length : 0,
+    avgClv: clvCount ? clvTotal / clvCount : 0,
+    brierScore: brierCount ? brierTotal / brierCount : 0,
+    calibrationScore:
+      decided
+        ? 100 -
+          Math.abs(
+            (timeline.reduce((sum, row) => sum + (row.outcome === "win" ? 100 : row.outcome === "loss" ? 0 : 0), 0) /
+              Math.max(1, decided)) -
+              (timeline.reduce((sum, row) => sum + row.modelProb, 0) / Math.max(1, timeline.length))
+          )
+        : 0,
     maxDrawdown
   };
 }
@@ -2954,7 +3261,9 @@ function filteredPlayers() {
 function renderSummary() {
   const predictions = DATA.predictions.filter(recommendationIsPlayable);
   const totalUnits = predictions.reduce((sum, prediction) => sum + adjustedUnits(prediction.units), 0);
-  const highestEdge = Math.max(...DATA.predictions.map((prediction) => evPercent(prediction.modelProbability, prediction.odds)));
+  const highestEdge = DATA.predictions.length
+    ? Math.max(...DATA.predictions.map((prediction) => evPercent(prediction.modelProbability, prediction.odds)))
+    : 0;
   const unit = state.bankroll.current * 0.01;
 
   document.getElementById("gameCount").textContent = filteredGames().length;
@@ -2964,14 +3273,49 @@ function renderSummary() {
   document.getElementById("sidebarBankroll").textContent = money(state.bankroll.current);
   document.getElementById("unitValue").textContent = money(unit);
   document.getElementById("asOfStamp").textContent = `Data as of ${DATA.asOf}`;
+
+  const headerUpdated = document.getElementById("headerLastUpdated");
+  const headerSync = document.getElementById("headerSyncStatus");
+  const headerApi = document.getElementById("headerApiStatus");
+  if (headerUpdated) headerUpdated.textContent = `Updated ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+  if (headerSync) {
+    headerSync.textContent = state.ui.loading ? "Sync: refreshing..." : "Sync: stable";
+    headerSync.className = `live-save-status ${state.ui.loading ? "warn" : "ok"}`;
+  }
+  if (headerApi) {
+    const missingOdds = DATA.games.filter((game) => !game.currentOdds).length;
+    if (state.ui.error) {
+      headerApi.textContent = "API: degraded";
+      headerApi.className = "live-save-status bad";
+    } else {
+      headerApi.textContent = missingOdds ? `API: ${missingOdds} market pending` : "API: healthy";
+      headerApi.className = `live-save-status ${missingOdds ? "warn" : "ok"}`;
+    }
+  }
 }
 
 function renderGames() {
   const container = document.getElementById("gameCards");
   const games = filteredGames();
 
+  if (state.ui.loading) {
+    container.innerHTML = `
+      <div class="skeleton skeleton-card"></div>
+      <div class="skeleton skeleton-card"></div>
+    `;
+    renderRecommendationLists([]);
+    return;
+  }
+
+  if (state.ui.error) {
+    container.innerHTML = `<div class="error-state">${state.ui.error}</div>`;
+    renderRecommendationLists([]);
+    return;
+  }
+
   if (!games.length) {
     container.innerHTML = `<div class="empty-state">No games match the active filters.</div>`;
+    renderRecommendationLists([]);
     return;
   }
 
@@ -2980,11 +3324,19 @@ function renderGames() {
       const away = getTeam(game.away);
       const home = getTeam(game.home);
       const bestBet = getPrediction(game.bestBetId);
+      const statusText = game.currentOdds
+        ? String(game.status || (game.marketStatus ? "scheduled" : "pre-game")).toUpperCase()
+        : "DATA PENDING";
+      const scoreText =
+        game.status === "final" || game.status === "live"
+          ? `${away.abbr} ${safeNumber(game.away_score, 0)} - ${home.abbr} ${safeNumber(game.home_score, 0)}`
+          : game.model.score;
       return `
         <article class="game-card">
           <div class="game-card-header">
             <div class="matchup-title">
               <span>${away.abbr} at ${home.abbr}</span>
+              <span class="tag">${statusText}</span>
               <span class="tag">${game.sport}</span>
               <span class="tag">${game.league}</span>
               <span class="tag">${formatDateLabel(game.date)}</span>
@@ -2999,16 +3351,22 @@ function renderGames() {
             <div class="team-lines">
               ${teamLine(away, game.model.awayWin)}
               <div class="prob-bar" aria-label="${away.name} win probability">
-                <div class="prob-fill" style="width:${game.model.awayWin}%"></div>
+                <div class="prob-fill" style="width:${safeProbability(game.model.awayWin)}%"></div>
               </div>
               ${game.model.draw !== undefined ? drawLine(game.model.draw) : ""}
               ${teamLine(home, game.model.homeWin)}
               <div class="prob-bar" aria-label="${home.name} win probability">
-                <div class="prob-fill" style="width:${game.model.homeWin}%"></div>
+                <div class="prob-fill" style="width:${safeProbability(game.model.homeWin)}%"></div>
               </div>
             </div>
             <div class="metric-grid">
               ${marketMetrics(game, away, home)}
+            </div>
+            <div class="metric-grid">
+              <div class="metric"><span class="metric-label">Predicted score</span><strong>${scoreText}</strong></div>
+              <div class="metric"><span class="metric-label">Confidence</span><strong>${bestBet ? `${safeNumber(bestBet.confidence, 5).toFixed(1)}/10` : "No bet"}</strong></div>
+              <div class="metric"><span class="metric-label">EV</span><strong>${bestBet ? pct(evPercent(bestBet.modelProbability, bestBet.odds), 2) : "No edge"}</strong></div>
+              <div class="metric"><span class="metric-label">Risk</span><strong>${bestBet ? bestBet.risk : "Watchlist"}</strong></div>
             </div>
             <div class="tag-row">
               ${game.matchup.map((item) => `<span class="tag">${item}</span>`).join("")}
@@ -3019,6 +3377,8 @@ function renderGames() {
       `;
     })
     .join("");
+
+  renderRecommendationLists(games);
 }
 
 function formatDateLabel(date) {
@@ -3038,10 +3398,15 @@ function marketMetrics(game, away, home) {
     `;
   }
 
+  const nbaTotal = safeNumber(game.currentOdds.total?.line, null);
+  const awaySpreadLine = safeNumber(game.currentOdds.awaySpread?.line, null);
+  const homeSpreadLine = safeNumber(game.currentOdds.homeSpread?.line, null);
+
   if (game.sport === "Soccer") {
+    const line = safeNumber(game.currentOdds.total?.line, null);
     return `
       <div class="metric"><span class="metric-label">3-way ML</span><strong>${home.abbr} ${formatOdds(game.currentOdds.homeMl)} / Draw ${formatOdds(game.currentOdds.drawMl)} / ${away.abbr} ${formatOdds(game.currentOdds.awayMl)}</strong></div>
-      <div class="metric"><span class="metric-label">Total goals</span><strong>${game.currentOdds.total.line} O ${formatOdds(game.currentOdds.total.overOdds)} / U ${formatOdds(game.currentOdds.total.underOdds)}</strong></div>
+      <div class="metric"><span class="metric-label">Total goals</span><strong>${line ?? "Data pending"} O ${formatOdds(game.currentOdds.total?.overOdds)} / U ${formatOdds(game.currentOdds.total?.underOdds)}</strong></div>
       <div class="metric"><span class="metric-label">Model lean</span><strong>${game.model.totalLean}</strong></div>
       <div class="metric"><span class="metric-label">Model score</span><strong>${game.model.score}</strong></div>
     `;
@@ -3049,8 +3414,8 @@ function marketMetrics(game, away, home) {
 
   return `
     <div class="metric"><span class="metric-label">Moneyline</span><strong>${away.abbr} ${formatOdds(game.currentOdds.awayMl)} / ${home.abbr} ${formatOdds(game.currentOdds.homeMl)}</strong></div>
-    <div class="metric"><span class="metric-label">Spread</span><strong>${away.abbr} +${game.currentOdds.awaySpread.line} / ${home.abbr} ${game.currentOdds.homeSpread.line}</strong></div>
-    <div class="metric"><span class="metric-label">Total</span><strong>${game.currentOdds.total.line}</strong></div>
+    <div class="metric"><span class="metric-label">Spread</span><strong>${awaySpreadLine == null || homeSpreadLine == null ? "Data pending" : `${away.abbr} +${awaySpreadLine} / ${home.abbr} ${homeSpreadLine}`}</strong></div>
+    <div class="metric"><span class="metric-label">Total</span><strong>${nbaTotal == null ? "Data pending" : nbaTotal}</strong></div>
     <div class="metric"><span class="metric-label">Model score</span><strong>${game.model.score}</strong></div>
   `;
 }
@@ -3071,12 +3436,93 @@ function bestBetBlock(game, bestBet) {
     <div class="best-bet-block">
       <span class="metric-label">Best bet suggestion</span>
       <strong>${bestBet.pick} (${formatOdds(bestBet.odds)})</strong>
+      <div class="meta-badges">
+        <span class="tag">${bestBet.type}</span>
+        <span class="ev-pill ${evClass(ev)}">${pct(ev, 2)} EV</span>
+        <span class="risk-pill ${riskClass(bestBet.risk)}">${bestBet.risk}</span>
+        <span class="tag">${adjustedUnits(bestBet.units).toFixed(2)}u</span>
+      </div>
       <span class="reason-text">${pct(bestBet.modelProbability)} probability, ${pct(ev)} EV, ${bestBet.confidence}/10 confidence, ${adjustedUnits(bestBet.units).toFixed(2)}u.</span>
     </div>
   `;
 }
 
+function renderRecommendationLists(games) {
+  const topContainer = document.getElementById("topPlaysList");
+  const watchContainer = document.getElementById("watchlistList");
+  const trapContainer = document.getElementById("trapList");
+  if (!topContainer || !watchContainer || !trapContainer) return;
+
+  const gameIds = new Set(games.map((game) => game.id));
+  const predictions = DATA.predictions.filter((prediction) => gameIds.has(prediction.gameId));
+  const ranked = predictions
+    .map((prediction) => ({
+      ...prediction,
+      ev: evPercent(prediction.modelProbability, prediction.odds)
+    }))
+    .sort((a, b) => b.ev - a.ev);
+
+  const top = ranked.filter((prediction) => prediction.ev > 3 && prediction.confidence >= 6).slice(0, 5);
+  const watch = ranked.filter((prediction) => prediction.ev > 0 && prediction.ev <= 3).slice(0, 5);
+  const trap = ranked
+    .filter((prediction) => prediction.ev <= 0 || prediction.confidence < 5 || prediction.risk === "High")
+    .slice(0, 5);
+
+  topContainer.innerHTML = top.length
+    ? top
+        .map(
+          (prediction) => `
+            <article class="pick-item">
+              <div class="pick-item-header">
+                <strong>${prediction.pick}</strong>
+                <span class="ev-pill ${evClass(prediction.ev)}">${pct(prediction.ev, 2)} EV</span>
+              </div>
+              <div class="pick-meta">
+                <span class="tag">${prediction.type}</span>
+                <span class="tag">${prediction.confidence}/10</span>
+                <span class="risk-pill ${riskClass(prediction.risk)}">${prediction.risk}</span>
+              </div>
+            </article>
+          `
+        )
+        .join("")
+    : `<div class="empty-state">NO BET: no play clears positive-EV quality thresholds.</div>`;
+
+  watchContainer.innerHTML = watch.length
+    ? watch
+        .map(
+          (prediction) => `
+            <article class="pick-item">
+              <div class="pick-item-header">
+                <strong>${prediction.pick}</strong>
+                <span class="warning-chip">Watchlist</span>
+              </div>
+              <span class="reason-text">Value is close. Track line movement for improved entry price.</span>
+            </article>
+          `
+        )
+        .join("")
+    : `<div class="empty-state">No watchlist bets right now.</div>`;
+
+  trapContainer.innerHTML = trap.length
+    ? trap
+        .map(
+          (prediction) => `
+            <article class="pick-item">
+              <div class="pick-item-header">
+                <strong>${prediction.pick}</strong>
+                <span class="risk-pill ${riskClass("High")}">Avoid</span>
+              </div>
+              <span class="reason-text">Low EV / elevated risk / weak confidence. Public-bias trap candidate.</span>
+            </article>
+          `
+        )
+        .join("")
+    : `<div class="empty-state">No trap signals for current filters.</div>`;
+}
+
 function drawLine(probability) {
+  const bounded = safeProbability(probability);
   return `
     <div class="team-line draw-line">
       <div class="draw-icon">X</div>
@@ -3084,15 +3530,16 @@ function drawLine(probability) {
         <strong>Draw</strong>
         <small>Soccer three-way market outcome</small>
       </div>
-      <span class="win-chip">${probability}%</span>
+      <span class="win-chip">${bounded}%</span>
     </div>
     <div class="prob-bar" aria-label="Draw probability">
-      <div class="prob-fill draw-fill" style="width:${probability}%"></div>
+      <div class="prob-fill draw-fill" style="width:${bounded}%"></div>
     </div>
   `;
 }
 
 function teamLine(team, probability) {
+  const bounded = safeProbability(probability);
   return `
     <div class="team-line">
       <img src="${team.logo}" alt="${team.name} logo" />
@@ -3100,7 +3547,7 @@ function teamLine(team, probability) {
         <strong>${team.name}</strong>
         <small>${team.record} | ${team.last10} L10 | ${team.homeAway}</small>
       </div>
-      <span class="win-chip">${probability}%</span>
+      <span class="win-chip">${bounded}%</span>
     </div>
   `;
 }
@@ -3163,7 +3610,7 @@ function renderPredictions() {
   const predictions = filteredPredictions();
 
   if (!predictions.length) {
-    container.innerHTML = `<tr><td colspan="8">No predictions match the active filters.</td></tr>`;
+    container.innerHTML = `<tr><td colspan="8">No predictions match the active filters. No bet recommended.</td></tr>`;
     return;
   }
 
@@ -3171,16 +3618,18 @@ function renderPredictions() {
     .map((prediction) => {
       const ev = evPercent(prediction.modelProbability, prediction.odds);
       const unit = adjustedUnits(prediction.units);
+      const implied = impliedProbability(prediction.odds);
+      const impliedText = implied == null ? "Data pending" : pct(implied * 100, 2);
       return `
         <tr>
-          <td><strong>${prediction.pick}</strong><span class="tag">${prediction.type}</span></td>
+          <td><strong>${prediction.pick}</strong><span class="tag">${prediction.type}</span><span class="tag" title="Model confidence from 1 to 10.">${safeNumber(prediction.confidence, 0).toFixed(1)}/10</span></td>
           <td>${formatOdds(prediction.odds)}</td>
-          <td>${pct(prediction.modelProbability)}<br /><span class="reason-text">Implied ${pct(impliedProbability(prediction.odds) * 100)}</span></td>
+          <td>${pct(safeProbability(prediction.modelProbability), 2)}<br /><span class="reason-text">Implied ${impliedText}</span></td>
           <td><span class="ev-pill ${evClass(ev)}">${pct(ev)}</span></td>
-          <td>${prediction.confidence}/10</td>
+          <td>${safeNumber(prediction.confidence, 0).toFixed(1)}/10</td>
           <td><span class="risk-pill ${riskClass(prediction.risk)}">${prediction.risk}</span></td>
           <td>${unit ? `${unit.toFixed(2)}u` : "No bet"}</td>
-          <td>${prediction.reason}</td>
+          <td>${prediction.reason}<br /><span class="reason-text">Predictions are not guaranteed. Bet responsibly.</span></td>
         </tr>
       `;
     })
@@ -3189,7 +3638,24 @@ function renderPredictions() {
 
 function renderHistory() {
   const container = document.getElementById("historyCards");
-  container.innerHTML = DATA.history
+  const warnings = [];
+  if (DATA.games.some((game) => !game.currentOdds)) warnings.push("Missing odds warning");
+  if (DATA.players.some((player) => player.points === null || player.points === undefined)) warnings.push("Missing player stats warning");
+  if (DATA.players.some((player) => String(player.status || "").toLowerCase() === "monitor")) warnings.push("Injury data uncertainty");
+  const asOfTs = Date.parse(DATA.asOf);
+  if (Number.isFinite(asOfTs) && Date.now() - asOfTs > 1000 * 60 * 90) warnings.push("Old data warning");
+
+  const blocks = warnings.length
+    ? [
+        {
+          title: "Data Quality Warnings",
+          items: warnings
+        },
+        ...DATA.history
+      ]
+    : DATA.history;
+
+  container.innerHTML = blocks
     .map(
       (block) => `
         <article class="history-card">
@@ -3217,6 +3683,19 @@ function renderBankroll() {
   const ledgerWinRate = ledgerWins + ledgerLosses ? (ledgerWins / (ledgerWins + ledgerLosses)) * 100 : 0;
   const unitsWon = ledger.reduce((sum, bet) => sum + bet.result, 0);
   const exposureCap = state.bankroll.current * (state.bankroll.maxExposure / 100);
+  const drawdown = Math.min(
+    0,
+    ledger.reduce(
+      (acc, bet) => {
+        const running = acc.running + bet.result;
+        const peak = Math.max(acc.peak, running);
+        return { running, peak, worst: Math.min(acc.worst, running - peak) };
+      },
+      { running: 0, peak: 0, worst: 0 }
+    ).worst
+  );
+  const riskOfRuin = clamp(Math.max(0, state.bankroll.lossStreak - 1) * 8 + Math.max(0, -drawdown * 3), 0, 95);
+  const exposureWarning = totalRisk > exposureCap ? "Warning: exposure above cap" : "Within exposure cap";
   const streakNote =
     state.bankroll.lossStreak >= 7
       ? "Pause betting"
@@ -3231,6 +3710,9 @@ function renderBankroll() {
     ["ROI", pct(roi)],
     ["Tracked win rate", pct(ledgerWinRate)],
     ["Units won/lost", `${unitsWon >= 0 ? "+" : ""}${unitsWon.toFixed(2)}u`],
+    ["Drawdown", `${drawdown.toFixed(2)}u`],
+    ["Risk of ruin", pct(riskOfRuin, 1)],
+    ["Exposure warning", exposureWarning],
     ["Sizing mode", streakNote],
     ["Best type", "Player props"],
     ["Worst type", "Moneyline juice"]
@@ -3342,14 +3824,19 @@ function renderBacktest() {
 
   statsContainer.innerHTML = [
     ["Source", sourceLabel],
-    ["Closed bets", metrics.count],
-    ["Record", `${metrics.wins}-${metrics.losses}-${metrics.pushes}`],
-    ["Hit rate", pct(metrics.hitRate)],
-    ["Units", `${metrics.units >= 0 ? "+" : ""}${metrics.units.toFixed(2)}u`],
-    ["ROI", pct(metrics.roi)],
+    ["Total bets", metrics.count],
+    ["Win rate", pct(metrics.hitRate, 2)],
+    ["ROI", pct(metrics.roi, 2)],
+    ["Net P/L", money(metrics.units * unitValue)],
+    ["Units won/lost", `${metrics.units >= 0 ? "+" : ""}${metrics.units.toFixed(2)}u`],
     ["Max drawdown", `${metrics.maxDrawdown.toFixed(2)}u`],
-    ["Avg edge", pct(metrics.avgEdge)],
-    ["Dollar P/L", money(metrics.units * unitValue)]
+    ["Best bet type", bestTypeFromTimeline(metrics.timeline)],
+    ["Worst bet type", worstTypeFromTimeline(metrics.timeline)],
+    ["Average odds", formatOdds(metrics.avgOdds)],
+    ["Average confidence", `${safeNumber(metrics.avgConfidence, 0).toFixed(2)}/10`],
+    ["Average EV", pct(metrics.avgEv, 2)],
+    ["Brier score", metrics.brierScore ? metrics.brierScore.toFixed(4) : "N/A"],
+    ["Calibration", pct(metrics.calibrationScore, 2)]
   ]
     .map(
       ([label, value]) => `
@@ -3362,7 +3849,7 @@ function renderBacktest() {
     .join("");
 
   if (!rows.length) {
-    table.innerHTML = `<tr><td colspan="8">No closed bets match this backtest setup.</td></tr>`;
+    table.innerHTML = `<tr><td colspan="12">No closed bets match this backtest setup.</td></tr>`;
     verdict.className = "verdict-card neutral";
     verdict.innerHTML = `
       <h4>No Qualified Sample</h4>
@@ -3409,17 +3896,41 @@ function renderBacktest() {
       (row) => `
         <tr>
           <td>${row.date}</td>
-          <td><strong>${row.pick}</strong><span class="tag">${row.sport} / ${row.betType}</span></td>
+          <td>${row.matchup || row.league || "N/A"}</td>
+          <td><span class="tag">${row.betType || row.type || "N/A"}</span></td>
+          <td><strong>${row.pick}</strong></td>
           <td>${formatOdds(row.odds)}</td>
-          <td>${pct(row.modelProbability)}<br /><span class="reason-text">${row.confidence}/10 confidence</span></td>
-          <td><span class="ev-pill ${evClass(row.edge)}">${pct(row.edge)}</span></td>
           <td>${row.stake.toFixed(2)}u</td>
           <td>${row.outcome}</td>
           <td><span class="ev-pill ${evClass(row.profit)}">${row.profit >= 0 ? "+" : ""}${row.profit.toFixed(2)}u</span></td>
+          <td>${pct(safeProbability(row.modelProbability), 2)}<br /><span class="reason-text">${safeNumber(row.confidence, 0).toFixed(1)}/10 confidence</span></td>
+          <td><span class="ev-pill ${evClass(row.edge)}">${pct(row.edge)}</span></td>
+          <td>${row.clv == null ? "N/A" : `${row.clv >= 0 ? "+" : ""}${row.clv.toFixed(2)}%`}</td>
+          <td>${row.note || "Historical simulation row"}</td>
         </tr>
       `
     )
     .join("");
+}
+
+function bestTypeFromTimeline(timeline) {
+  const totals = timeline.reduce((acc, row) => {
+    const key = row.betType || row.type || "Unknown";
+    acc[key] = (acc[key] || 0) + Number(row.profit || 0);
+    return acc;
+  }, {});
+  const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+  return sorted[0]?.[0] || "N/A";
+}
+
+function worstTypeFromTimeline(timeline) {
+  const totals = timeline.reduce((acc, row) => {
+    const key = row.betType || row.type || "Unknown";
+    acc[key] = (acc[key] || 0) + Number(row.profit || 0);
+    return acc;
+  }, {});
+  const sorted = Object.entries(totals).sort((a, b) => a[1] - b[1]);
+  return sorted[0]?.[0] || "N/A";
 }
 
 function renderFinalPicks() {
@@ -3460,7 +3971,7 @@ function renderFinalPicks() {
           `;
         })
         .join("")
-    : `<div class="empty-state">No positive-EV bets clear the sizing rules. No bets recommended.</div>`;
+    : `<div class="empty-state">No positive-EV bets clear the sizing rules. NO BET recommended today.</div>`;
 
   avoidContainer.innerHTML = avoids
     .map((prediction) => {
@@ -3480,6 +3991,11 @@ function renderFinalPicks() {
       `;
     })
     .join("");
+
+  bestContainer.insertAdjacentHTML(
+    "beforeend",
+    `<div class="reason-text">Predictions are not guaranteed. Bet responsibly. Never chase losses.</div>`
+  );
 }
 
 function chartOptions(extra = {}) {
@@ -3526,12 +4042,12 @@ function renderWinProbChart() {
       datasets: [
         {
           label: "Away win %",
-          data: games.map((game) => game.model.awayWin),
+          data: games.map((game) => safeProbability(game.model.awayWin)),
           backgroundColor: "#2563eb"
         },
         {
           label: "Home win %",
-          data: games.map((game) => game.model.homeWin),
+          data: games.map((game) => safeProbability(game.model.homeWin)),
           backgroundColor: "#0f766e"
         }
       ]
@@ -3791,9 +4307,65 @@ function renderBacktestCharts() {
     },
     options: chartOptions({ scales: { y: { min: 0, max: 100 } } })
   });
+
+  replaceChart("backtestWinRateChart", {
+    type: "line",
+    data: {
+      labels: metrics.timeline.map((row) => row.date),
+      datasets: [
+        {
+          label: "Rolling win rate",
+          data: metrics.timeline.map((row) => Number(row.rollingWinRate.toFixed(2))),
+          borderColor: "#2563eb",
+          backgroundColor: "rgba(37,99,235,0.12)",
+          fill: true,
+          tension: 0.3
+        }
+      ]
+    },
+    options: chartOptions({ scales: { y: { min: 0, max: 100 } } })
+  });
+
+  replaceChart("backtestDrawdownChart", {
+    type: "line",
+    data: {
+      labels: metrics.timeline.map((row) => row.date),
+      datasets: [
+        {
+          label: "Drawdown (u)",
+          data: metrics.timeline.map((row) => Number(row.drawdown.toFixed(2))),
+          borderColor: "#b91c1c",
+          backgroundColor: "rgba(185,28,28,0.12)",
+          fill: true,
+          tension: 0.3
+        }
+      ]
+    },
+    options: chartOptions()
+  });
+
+  replaceChart("backtestEvRealityChart", {
+    type: "scatter",
+    data: {
+      datasets: [
+        {
+          label: "EV vs result",
+          data: metrics.timeline.map((row) => ({ x: Number(row.edge.toFixed(2)), y: Number(row.profit.toFixed(2)) })),
+          backgroundColor: metrics.timeline.map((row) => (row.profit >= 0 ? "#15803d" : "#b91c1c"))
+        }
+      ]
+    },
+    options: chartOptions({
+      scales: {
+        x: { title: { display: true, text: "EV %" } },
+        y: { title: { display: true, text: "Actual units" } }
+      }
+    })
+  });
 }
 
 function render() {
+  applyUiMode();
   renderSummary();
   renderGames();
   renderPlayers();

@@ -71,6 +71,17 @@ function safeNumber(value, fallback = null) {
   return Number.isFinite(numeric) ? numeric : fallback;
 }
 
+function safeString(value, fallback = null) {
+  if (value === undefined || value === null) return fallback;
+  const text = String(value).trim();
+  return text.length ? text : fallback;
+}
+
+function safeBoolInt(value, fallback = null) {
+  if (value === undefined || value === null) return fallback;
+  return value ? 1 : 0;
+}
+
 function settlePnl(odds, stakeUnits, result) {
   const price = Number(odds);
   const stake = Number(stakeUnits);
@@ -110,12 +121,19 @@ async function handleApi(request, response, parsedUrl) {
   }
 
   if (pathname === "/api/status" && request.method === "GET") {
+    const settings = repo.getSettings();
     return sendJson(response, 200, {
       sync: syncService.getStatus(),
-      settings: repo.getSettings(),
+      settings,
       keys: {
         balldontlie: mask(env.balldontlieApiKey),
         odds: mask(env.oddsApiKey)
+      },
+      request_limits: {
+        provider: settings.api_provider || "balldontlie+odds",
+        daily_cap: 500,
+        estimated_remaining: 500,
+        note: "Provider quotas vary by plan. Monitor upstream dashboards."
       }
     });
   }
@@ -131,12 +149,50 @@ async function handleApi(request, response, parsedUrl) {
       bankroll_current: safeNumber(body.bankroll_current),
       unit_percent: safeNumber(body.unit_percent),
       max_single_bet_percent: safeNumber(body.max_single_bet_percent),
+      max_daily_exposure_percent: safeNumber(body.max_daily_exposure_percent),
+      stop_loss_percent: safeNumber(body.stop_loss_percent),
+      profit_target_percent: safeNumber(body.profit_target_percent),
+      losing_streak_protection: safeBoolInt(body.losing_streak_protection),
+      min_confidence_required: safeNumber(body.min_confidence_required),
+      min_ev_required: safeNumber(body.min_ev_required),
+      max_risk_level: safeString(body.max_risk_level),
+      max_bets_per_day: safeNumber(body.max_bets_per_day),
+      max_units_per_bet: safeNumber(body.max_units_per_bet),
+      max_units_per_day: safeNumber(body.max_units_per_day),
+      use_kelly: safeBoolInt(body.use_kelly),
+      fractional_kelly: safeNumber(body.fractional_kelly),
+      api_provider: safeString(body.api_provider),
+      odds_format: safeString(body.odds_format),
+      timezone: safeString(body.timezone),
+      compact_mode: safeBoolInt(body.compact_mode),
+      theme_mode: safeString(body.theme_mode),
+      team_form_weight: safeNumber(body.team_form_weight),
+      player_form_weight: safeNumber(body.player_form_weight),
+      injury_weight: safeNumber(body.injury_weight),
+      home_away_weight: safeNumber(body.home_away_weight),
+      rest_days_weight: safeNumber(body.rest_days_weight),
+      head_to_head_weight: safeNumber(body.head_to_head_weight),
+      odds_movement_weight: safeNumber(body.odds_movement_weight),
+      pace_weight: safeNumber(body.pace_weight),
+      defense_matchup_weight: safeNumber(body.defense_matchup_weight),
       live_refresh_seconds: safeNumber(body.live_refresh_seconds),
       odds_refresh_minutes: safeNumber(body.odds_refresh_minutes),
       scheduled_refresh_hours: safeNumber(body.scheduled_refresh_hours),
       injuries_refresh_minutes: safeNumber(body.injuries_refresh_minutes)
     });
     return sendJson(response, 200, updated);
+  }
+
+  if (pathname === "/api/settings/test" && request.method === "POST") {
+    const keys = {
+      balldontlie: Boolean(env.balldontlieApiKey),
+      odds: Boolean(env.oddsApiKey)
+    };
+    return sendJson(response, 200, {
+      ok: keys.balldontlie && keys.odds,
+      tested_at: nowIso(),
+      keys
+    });
   }
 
   if (pathname === "/api/sync/run" && request.method === "POST") {
@@ -181,7 +237,17 @@ async function handleApi(request, response, parsedUrl) {
     const result = dashboardService.runBacktest({
       from: body.from,
       to: body.to,
-      label: body.label || "manual-run"
+      label: body.label || "manual-run",
+      sport: body.sport || "all",
+      league: body.league || "all",
+      team: body.team || "all",
+      betType: body.betType || "all",
+      minConfidence: safeNumber(body.minConfidence),
+      minEv: safeNumber(body.minEv),
+      maxBetsPerDay: safeNumber(body.maxBetsPerDay),
+      maxDailyExposureUnits: safeNumber(body.maxDailyExposureUnits),
+      maxUnitSize: safeNumber(body.maxUnitSize),
+      skipInjuryUncertainty: body.skipInjuryUncertainty !== false
     });
     return sendJson(response, 200, result);
   }

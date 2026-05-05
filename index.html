@@ -19,6 +19,9 @@
             <p class="eyebrow">Multi-sport slate</p>
             <h1>Betting Desk</h1>
           </div>
+          <button class="icon-button ghost" id="sidebarCollapse" title="Collapse sidebar" aria-label="Collapse sidebar">
+            <i data-lucide="panel-left-close"></i>
+          </button>
         </div>
 
         <div class="filter-stack">
@@ -97,7 +100,16 @@
             <h2>Professional Sports Betting Dashboard</h2>
           </div>
           <div class="top-actions">
+            <span id="headerLastUpdated" class="live-save-status">Updated just now</span>
+            <span id="headerSyncStatus" class="live-save-status">Sync: standby</span>
+            <span id="headerApiStatus" class="live-save-status">API: checking</span>
             <span id="liveSaveStatus" class="live-save-status">Local auto-save ready</span>
+            <button class="icon-button" id="manualRefreshTop" title="Refresh data" aria-label="Refresh data">
+              <i data-lucide="refresh-cw"></i>
+            </button>
+            <button class="icon-button" id="themeToggle" title="Toggle dark mode" aria-label="Toggle dark mode">
+              <i data-lucide="moon-star"></i>
+            </button>
             <button class="icon-button" id="resetFilters" title="Reset filters" aria-label="Reset filters">
               <i data-lucide="rotate-ccw"></i>
             </button>
@@ -170,6 +182,20 @@
             <span id="asOfStamp"></span>
           </div>
           <div id="gameCards" class="game-grid"></div>
+          <div class="recommendation-grid">
+            <article class="history-card">
+              <h4>Top Plays Today</h4>
+              <div id="topPlaysList" class="pick-list"></div>
+            </article>
+            <article class="history-card">
+              <h4>Watchlist Bets</h4>
+              <div id="watchlistList" class="pick-list"></div>
+            </article>
+            <article class="history-card">
+              <h4>Avoid / Trap Bets</h4>
+              <div id="trapList" class="pick-list"></div>
+            </article>
+          </div>
           <div class="chart-grid">
             <div class="chart-panel">
               <div class="panel-heading">
@@ -225,13 +251,13 @@
             <table>
               <thead>
                 <tr>
-                  <th>Bet</th>
-                  <th>Odds</th>
-                  <th>Probability</th>
-                  <th>EV</th>
-                  <th>Confidence</th>
-                  <th>Risk</th>
-                  <th>Unit</th>
+                  <th title="Selected market and side/total/prop.">Bet</th>
+                  <th title="Market odds in selected format.">Odds</th>
+                  <th title="Model probability vs implied probability from odds.">Probability</th>
+                  <th title="Expected value percentage for this bet.">EV</th>
+                  <th title="Model confidence score from 1 to 10.">Confidence</th>
+                  <th title="Risk classification based on confidence, edge, and context.">Risk</th>
+                  <th title="Suggested unit sizing using bankroll and risk controls.">Unit</th>
                   <th>Reason</th>
                 </tr>
               </thead>
@@ -468,20 +494,77 @@
           <div class="backtest-grid">
             <form id="backtestForm" class="backtest-form">
               <label>
+                <span>Date from</span>
+                <input id="backtestFromDate" type="date" value="2026-04-01" />
+              </label>
+              <label>
+                <span>Date to</span>
+                <input id="backtestToDate" type="date" value="2026-05-05" />
+              </label>
+              <label>
                 <span>Sport</span>
                 <select id="backtestSport">
                   <option value="all">All sports</option>
                   <option value="NBA">NBA</option>
+                  <option value="WNBA">WNBA</option>
+                  <option value="MLB">MLB</option>
+                  <option value="NHL">NHL</option>
+                  <option value="NFL">NFL</option>
+                  <option value="NCAABB">NCAABB</option>
+                  <option value="EuroLeague">EuroLeague</option>
                   <option value="Soccer">Soccer</option>
+                  <option value="Tennis">Tennis</option>
+                  <option value="Golf">Golf</option>
+                  <option value="Boxing">Boxing</option>
                 </select>
               </label>
               <label>
-                <span>Strategy</span>
-                <select id="backtestStrategy">
-                  <option value="all-positive">All +EV bets</option>
-                  <option value="totals">Totals only</option>
-                  <option value="props">Player props only</option>
-                  <option value="high-confidence">High confidence</option>
+                <span>Strategy preset</span>
+                <select id="backtestPreset">
+                  <option value="balanced">Balanced</option>
+                  <option value="conservative">Conservative</option>
+                  <option value="aggressive">Aggressive</option>
+                  <option value="props">Player Props Only</option>
+                  <option value="moneyline">Moneyline Only</option>
+                  <option value="spread">Spread Only</option>
+                  <option value="totals">Totals Only</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </label>
+              <label>
+                <span>League</span>
+                <select id="backtestLeague">
+                  <option value="all">All leagues</option>
+                  <option value="NBA">NBA</option>
+                  <option value="WNBA">WNBA</option>
+                  <option value="MLB">MLB</option>
+                  <option value="NHL">NHL</option>
+                  <option value="NFL">NFL</option>
+                  <option value="NCAABB">NCAABB</option>
+                  <option value="EuroLeague">EuroLeague</option>
+                  <option value="FIFA World Cup">FIFA World Cup</option>
+                  <option value="EPL">EPL</option>
+                  <option value="ATP Italian Open">ATP Italian Open</option>
+                  <option value="WTA Italian Open">WTA Italian Open</option>
+                  <option value="Boxing">Boxing</option>
+                  <option value="NBA Playoffs">NBA Playoffs</option>
+                  <option value="Premier League">Premier League</option>
+                </select>
+              </label>
+              <label>
+                <span>Team</span>
+                <select id="backtestTeam">
+                  <option value="all">All teams</option>
+                </select>
+              </label>
+              <label>
+                <span>Bet type</span>
+                <select id="backtestBetType">
+                  <option value="all">All bet types</option>
+                  <option value="Moneyline">Moneyline</option>
+                  <option value="Spread">Spread</option>
+                  <option value="Total">Total</option>
+                  <option value="Player prop">Player prop</option>
                 </select>
               </label>
               <label>
@@ -502,6 +585,27 @@
                 <span>Backtest bankroll</span>
                 <input id="backtestBankroll" type="number" min="100" step="50" value="1000" />
               </label>
+              <label>
+                <span>Max bets / day</span>
+                <input id="backtestMaxBetsDay" type="number" min="1" max="30" step="1" value="5" />
+              </label>
+              <label>
+                <span>Max daily exposure (u)</span>
+                <input id="backtestMaxDailyExposure" type="number" min="1" max="25" step="0.5" value="8" />
+              </label>
+              <label>
+                <span>Result filter</span>
+                <select id="backtestResultFilter">
+                  <option value="all">All results</option>
+                  <option value="win">Wins only</option>
+                  <option value="loss">Losses only</option>
+                  <option value="push">Push only</option>
+                </select>
+              </label>
+              <label class="check-row">
+                <input id="backtestSkipInjuryRisk" type="checkbox" checked />
+                <span>Skip major injury uncertainty</span>
+              </label>
             </form>
             <div id="backtestStats" class="backtest-stats"></div>
           </div>
@@ -515,6 +619,9 @@
             <div class="backtest-actions">
               <button type="button" id="loadBacktestCsv">Load CSV</button>
               <button type="button" id="resetBacktestCsv">Reset sample</button>
+              <button type="button" id="runApiBacktest">Run server backtest</button>
+              <button type="button" id="exportBacktestCsv">Export CSV</button>
+              <button type="button" id="exportBacktestJson">Export JSON</button>
               <span id="backtestCsvStatus"></span>
             </div>
           </div>
@@ -541,6 +648,27 @@
               </div>
               <canvas id="backtestCalibrationChart"></canvas>
             </div>
+            <div class="chart-panel">
+              <div class="panel-heading">
+                <h4>Win Rate Over Time</h4>
+                <span>Rolling closed sample</span>
+              </div>
+              <canvas id="backtestWinRateChart"></canvas>
+            </div>
+            <div class="chart-panel">
+              <div class="panel-heading">
+                <h4>Drawdown</h4>
+                <span>Risk depth tracking</span>
+              </div>
+              <canvas id="backtestDrawdownChart"></canvas>
+            </div>
+            <div class="chart-panel wide">
+              <div class="panel-heading">
+                <h4>EV vs Actual Results</h4>
+                <span>Expectation vs outcome</span>
+              </div>
+              <canvas id="backtestEvRealityChart"></canvas>
+            </div>
           </div>
 
           <div id="backtestVerdict" class="verdict-card"></div>
@@ -549,13 +677,17 @@
               <thead>
                 <tr>
                   <th>Date</th>
-                  <th>Bet</th>
+                  <th>Game</th>
+                  <th>Bet Type</th>
+                  <th>Pick</th>
                   <th>Odds</th>
-                  <th>Model</th>
-                  <th>EV</th>
                   <th>Stake</th>
                   <th>Result</th>
                   <th>P/L</th>
+                  <th>Model</th>
+                  <th>EV</th>
+                  <th>CLV</th>
+                  <th>Notes</th>
                 </tr>
               </thead>
               <tbody id="backtestRows"></tbody>
@@ -573,6 +705,25 @@
           </div>
           <div class="settings-grid">
             <form id="apiSettingsForm" class="settings-form">
+              <div class="settings-section-title">API Settings</div>
+              <label>
+                <span>API provider</span>
+                <select id="apiProvider">
+                  <option value="balldontlie+odds">BALLDONTLIE + Odds API</option>
+                  <option value="balldontlie">BALLDONTLIE only</option>
+                </select>
+              </label>
+              <label>
+                <span>BALLDONTLIE key</span>
+                <input id="apiKeyBall" type="password" placeholder="Set in backend .env (not editable here)" disabled />
+              </label>
+              <label>
+                <span>Odds API key</span>
+                <input id="apiKeyOdds" type="password" placeholder="Set in backend .env (not editable here)" disabled />
+              </label>
+              <button type="button" id="apiTestConnection">Test connection</button>
+
+              <div class="settings-section-title">Bankroll Settings</div>
               <label>
                 <span>Starting bankroll</span>
                 <input id="apiBankrollStarting" type="number" min="100" step="50" value="1000" />
@@ -589,6 +740,106 @@
                 <span>Max single bet %</span>
                 <input id="apiMaxSinglePct" type="number" min="1" max="5" step="0.5" value="5" />
               </label>
+              <label>
+                <span>Max daily exposure %</span>
+                <input id="apiMaxDailyExposurePct" type="number" min="1" max="30" step="0.5" value="12" />
+              </label>
+              <label>
+                <span>Stop-loss %</span>
+                <input id="apiStopLossPct" type="number" min="1" max="30" step="0.5" value="8" />
+              </label>
+              <label>
+                <span>Profit target %</span>
+                <input id="apiProfitTargetPct" type="number" min="1" max="50" step="0.5" value="12" />
+              </label>
+              <label class="check-row">
+                <input id="apiLosingStreakProtection" type="checkbox" checked />
+                <span>Losing streak protection</span>
+              </label>
+
+              <div class="settings-section-title">Risk Settings</div>
+              <label>
+                <span>Risk mode</span>
+                <select id="apiRiskMode">
+                  <option value="Balanced">Balanced</option>
+                  <option value="Conservative">Conservative</option>
+                  <option value="Aggressive">Aggressive</option>
+                </select>
+              </label>
+              <label>
+                <span>Min confidence required</span>
+                <input id="apiMinConfidence" type="number" min="1" max="10" step="0.1" value="6" />
+              </label>
+              <label>
+                <span>Min EV required %</span>
+                <input id="apiMinEvRequired" type="number" min="0" max="15" step="0.1" value="3" />
+              </label>
+              <label>
+                <span>Maximum risk level</span>
+                <select id="apiMaxRiskLevel">
+                  <option value="Low">Low</option>
+                  <option value="Medium">Medium</option>
+                  <option value="High" selected>High</option>
+                </select>
+              </label>
+              <label>
+                <span>Max bets/day</span>
+                <input id="apiMaxBetsPerDay" type="number" min="1" max="30" step="1" value="5" />
+              </label>
+              <label>
+                <span>Max units/bet</span>
+                <input id="apiMaxUnitsPerBet" type="number" min="0.25" max="5" step="0.25" value="3" />
+              </label>
+              <label>
+                <span>Max units/day</span>
+                <input id="apiMaxUnitsPerDay" type="number" min="1" max="20" step="0.5" value="8" />
+              </label>
+              <label class="check-row">
+                <input id="apiUseKelly" type="checkbox" checked />
+                <span>Enable Kelly Criterion</span>
+              </label>
+              <label>
+                <span>Fractional Kelly</span>
+                <input id="apiFractionalKelly" type="number" min="0.1" max="1" step="0.05" value="0.5" />
+              </label>
+
+              <div class="settings-section-title">Model Weights</div>
+              <label><span>Team form weight</span><input id="apiWeightTeamForm" type="number" step="0.05" min="0" max="3" value="1" /></label>
+              <label><span>Player form weight</span><input id="apiWeightPlayerForm" type="number" step="0.05" min="0" max="3" value="1" /></label>
+              <label><span>Injury weight</span><input id="apiWeightInjury" type="number" step="0.05" min="0" max="3" value="1.15" /></label>
+              <label><span>Home/Away weight</span><input id="apiWeightHomeAway" type="number" step="0.05" min="0" max="3" value="0.95" /></label>
+              <label><span>Rest days weight</span><input id="apiWeightRest" type="number" step="0.05" min="0" max="3" value="0.8" /></label>
+              <label><span>Head-to-head weight</span><input id="apiWeightH2h" type="number" step="0.05" min="0" max="3" value="0.5" /></label>
+              <label><span>Odds movement weight</span><input id="apiWeightOddsMove" type="number" step="0.05" min="0" max="3" value="0.7" /></label>
+              <label><span>Pace weight</span><input id="apiWeightPace" type="number" step="0.05" min="0" max="3" value="0.8" /></label>
+              <label><span>Defense matchup weight</span><input id="apiWeightDefenseMatchup" type="number" step="0.05" min="0" max="3" value="0.9" /></label>
+
+              <div class="settings-section-title">Display Settings</div>
+              <label>
+                <span>Theme mode</span>
+                <select id="apiThemeMode">
+                  <option value="dark">Dark</option>
+                  <option value="light">Light</option>
+                </select>
+              </label>
+              <label class="check-row">
+                <input id="apiCompactMode" type="checkbox" />
+                <span>Compact mode</span>
+              </label>
+              <label>
+                <span>Odds format</span>
+                <select id="apiOddsFormat">
+                  <option value="american">American</option>
+                  <option value="decimal">Decimal</option>
+                  <option value="fractional">Fractional</option>
+                </select>
+              </label>
+              <label>
+                <span>Timezone</span>
+                <input id="apiTimezone" type="text" value="America/Chicago" />
+              </label>
+
+              <div class="settings-section-title">Data Sync Settings</div>
               <label>
                 <span>Live refresh seconds</span>
                 <input id="apiLiveSeconds" type="number" min="15" max="120" step="5" value="30" />
@@ -608,6 +859,7 @@
               <div class="settings-actions">
                 <button type="submit">Save settings</button>
                 <button type="button" id="manualSync">Run sync now</button>
+                <button type="button" id="clearDashboardCache">Clear cache</button>
                 <span id="apiSettingsStatus"></span>
               </div>
             </form>

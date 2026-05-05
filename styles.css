@@ -27,6 +27,26 @@ body {
   background: var(--bg);
   color: var(--ink);
   overflow-x: hidden;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+body[data-theme="dark"] {
+  --bg: #0d1523;
+  --panel: #111b2b;
+  --panel-2: #162336;
+  --ink: #e8eef6;
+  --muted: #95a7bd;
+  --line: #2a3b53;
+  --shadow: 0 16px 42px rgba(0, 0, 0, 0.34);
+}
+
+body[data-theme="light"] {
+  --bg: #eef2f5;
+  --panel: #ffffff;
+  --panel-2: #f7fafc;
+  --ink: #17212b;
+  --muted: #657383;
+  --line: #d8e0e8;
 }
 
 button,
@@ -151,6 +171,13 @@ a:hover {
   padding-top: 14px;
 }
 
+.settings-form .check-row,
+.backtest-form .check-row {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
 .check-row input {
   width: 18px;
   height: 18px;
@@ -210,6 +237,10 @@ a:hover {
   gap: 8px;
 }
 
+.top-actions {
+  flex-wrap: wrap;
+}
+
 .live-save-status {
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -224,6 +255,21 @@ a:hover {
 .live-save-status.save-warning {
   border-color: #f1c2c2;
   color: var(--bad);
+}
+
+.live-save-status.ok {
+  border-color: rgba(34, 197, 94, 0.36);
+  color: #15803d;
+}
+
+.live-save-status.warn {
+  border-color: rgba(217, 119, 6, 0.36);
+  color: #b45309;
+}
+
+.live-save-status.bad {
+  border-color: rgba(220, 38, 38, 0.36);
+  color: #b91c1c;
 }
 
 .icon-button,
@@ -246,6 +292,13 @@ a:hover {
 .tab-button svg {
   width: 18px;
   height: 18px;
+}
+
+.icon-button.ghost {
+  margin-left: auto;
+  border-color: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.08);
+  color: #c9d6e4;
 }
 
 .summary-strip {
@@ -361,6 +414,17 @@ a:hover {
   border-radius: 8px;
   background: var(--panel);
   box-shadow: 0 8px 24px rgba(21, 32, 43, 0.05);
+  transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+}
+
+.game-card:hover,
+.player-card:hover,
+.history-card:hover,
+.chart-panel:hover,
+.table-shell:hover {
+  transform: translateY(-1px);
+  border-color: #8ea9c4;
+  box-shadow: 0 14px 30px rgba(21, 32, 43, 0.12);
 }
 
 .game-card {
@@ -573,6 +637,12 @@ a:hover {
   padding: 10px 12px;
 }
 
+.best-bet-block .meta-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .best-bet-block.pending {
   border-left-color: #64748b;
   background: #f8fafc;
@@ -587,6 +657,13 @@ a:hover {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
   margin-top: 16px;
+}
+
+.recommendation-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
 }
 
 .chart-panel {
@@ -789,6 +866,11 @@ td strong {
   gap: 13px;
 }
 
+.settings-form,
+.backtest-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .bankroll-form input,
 .tracker-form input,
 .tracker-form select,
@@ -809,6 +891,17 @@ td strong {
   gap: 7px;
   font-size: 0.86rem;
   font-weight: 700;
+}
+
+.settings-form > button[type="button"] {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 800;
+  padding: 8px 12px;
 }
 
 .tracker-form {
@@ -872,6 +965,18 @@ td strong {
   color: var(--muted);
   font-size: 0.84rem;
   font-weight: 800;
+}
+
+.settings-section-title {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  color: var(--accent-2);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .bankroll-stat {
@@ -1086,6 +1191,84 @@ td strong {
   font-weight: 700;
 }
 
+.error-state {
+  border: 1px solid rgba(220, 38, 38, 0.32);
+  border-radius: 8px;
+  background: rgba(220, 38, 38, 0.08);
+  padding: 14px;
+  color: #b91c1c;
+  font-weight: 800;
+}
+
+.warning-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(217, 119, 6, 0.34);
+  border-radius: 999px;
+  background: rgba(251, 191, 36, 0.16);
+  color: #9a3412;
+  padding: 4px 8px;
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.26), transparent);
+  animation: shimmer 1.2s infinite;
+}
+
+.skeleton-card {
+  min-height: 220px;
+}
+
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 88px minmax(0, 1fr);
+}
+
+.app-shell.sidebar-collapsed .sidebar {
+  padding: 18px 10px;
+}
+
+.app-shell.sidebar-collapsed .brand-block h1,
+.app-shell.sidebar-collapsed .brand-block .eyebrow,
+.app-shell.sidebar-collapsed .filter-stack,
+.app-shell.sidebar-collapsed .bankroll-panel {
+  display: none;
+}
+
+body.compact-mode .workspace {
+  padding: 16px;
+}
+
+body.compact-mode .game-card-body,
+body.compact-mode .player-card,
+body.compact-mode .history-card,
+body.compact-mode .bankroll-form,
+body.compact-mode .tracker-form,
+body.compact-mode .settings-form,
+body.compact-mode .backtest-form,
+body.compact-mode .chart-panel {
+  padding: 12px;
+}
+
 @media (max-width: 1180px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -1102,6 +1285,7 @@ td strong {
 
   .game-grid,
   .chart-grid,
+  .recommendation-grid,
   .final-output,
   .bankroll-grid,
   .tracker-grid,
@@ -1159,6 +1343,8 @@ td strong {
   .metric-grid,
   .bankroll-stats,
   .tracker-form,
+  .settings-form,
+  .backtest-form,
   .tracker-stats,
   .settings-status,
   .backtest-stats {

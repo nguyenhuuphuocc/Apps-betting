@@ -1,14 +1,21 @@
-# Live NBA Betting Analytics Platform
+# Live Multi-Sport Betting Analytics Platform
 
-This project upgrades the previous static betting dashboard into a live NBA analytics platform with:
+This project upgrades the previous static betting dashboard into a live multi-sport analytics platform with:
 
 - Backend API routes
 - SQLite persistence with table schema/migrations
-- BALLDONTLIE + Odds provider ingestion
+- BALLDONTLIE + Odds provider ingestion (multi-sport odds sync)
 - Prediction engine (moneyline/spread/total with EV and risk sizing)
+- Calibrated prediction engine (bounded probabilities + Monte Carlo blend)
+- EV grading and value-gap classification (green/yellow/red)
+- Matchup/context intelligence (rest, b2b, injuries, postseason pressure)
+- Line movement intelligence (opening vs current, steam/trap signals)
 - Backtesting endpoint
 - Bankroll/risk rules
 - Frontend auto-refresh and settings controls
+- Premium UI upgrade (dark/light toggle, collapsible sidebar, status header)
+- Advanced backtest controls + export (CSV / JSON)
+- Expanded settings engine (API, bankroll, risk, model weights, display, sync)
 
 ## Safety Notice
 
@@ -20,6 +27,24 @@ This project upgrades the previous static betting dashboard into a live NBA anal
 ## Architecture
 
 `API Provider -> Backend API -> SQLite -> Prediction Engine -> Dashboard`
+
+Supported sports (odds-driven today):
+
+- NBA
+- WNBA
+- MLB
+- NHL
+- NFL
+- NCAABB
+- EuroLeague
+- Soccer (World Cup + leagues where odds are available)
+- Tennis (ATP/WTA Rome keys included)
+- Boxing
+
+Notes:
+
+- NBA has the deepest stats context in this build (team/player/injury depth).
+- Non-NBA sports are synced through Odds API markets and run through the same EV/risk engine with bounded probabilities and no-bet discipline.
 
 Key backend files:
 
@@ -77,6 +102,8 @@ Copy-Item .env.example .env
 
 - [http://localhost:8787](http://localhost:8787)
 
+If you were already running an older server build, fully stop it and restart so the new settings schema and routes are loaded.
+
 ## Real-Time Refresh Strategy
 
 Default auto update intervals:
@@ -100,6 +127,7 @@ Settings:
 
 - `GET /api/settings`
 - `PUT /api/settings`
+- `POST /api/settings/test`
 
 Sync:
 
@@ -117,6 +145,13 @@ Backtesting:
 
 - `POST /api/backtest/run`
 - `GET /api/backtest/results`
+
+`POST /api/backtest/run` now accepts optional controls:
+
+- `sport`, `league`, `team`, `betType`
+- `minConfidence`, `minEv`
+- `maxBetsPerDay`, `maxDailyExposureUnits`, `maxUnitSize`
+- `skipInjuryUncertainty`
 
 Tracked bets:
 
@@ -138,9 +173,12 @@ Implemented rules:
   - `3+` losses: recommended size reduced by `50%`
   - `7+` losses: recommendation size becomes `0` (pause state)
 - If edge is non-positive, recommendation is `NO BET`
+- UI and model outputs are sanitized to avoid `Infinity`, `NaN`, and impossible probability displays
 
 ## Notes
 
 - API keys are never exposed in frontend JavaScript.
 - If an API is unavailable, the UI gracefully falls back to existing local dashboard data.
 - The frontend tracker/backtest modules remain available and now coexist with live backend sync.
+- Probability outputs are bounded between `5%` and `95%` to prevent unrealistic certainty.
+- Non-finite EV values are blocked and downgraded to neutral/no-bet handling.
