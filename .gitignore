@@ -3,3 +3,13 @@ data/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+edge-profile/
+edge-profile-live/
+edge-profile-live-mobile/
+dashboard-*.png
+dashboard-*.html
+edge-profile/
+edge-profile-live/
+edge-profile-live-mobile/
+dashboard-*.png
+dashboard-*.html
