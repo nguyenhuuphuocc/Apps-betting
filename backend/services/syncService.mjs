@@ -11,6 +11,79 @@ function normalizeName(value = "") {
   return String(value).toLowerCase().replace(/[^a-z]/g, "");
 }
 
+function eventSignature(sportKey, homeName, awayName, isoDate) {
+  return `${sportKey}|${normalizeName(homeName)}|${normalizeName(awayName)}|${String(isoDate || "").slice(0, 10)}`;
+}
+
+const SUPPORTED_SPORT_KEYS = [
+  "basketball_nba",
+  "basketball_wnba",
+  "baseball_mlb",
+  "icehockey_nhl",
+  "americanfootball_nfl",
+  "basketball_ncaab",
+  "basketball_euroleague",
+  "soccer_fifa_world_cup",
+  "soccer_epl",
+  "tennis_atp_italian_open",
+  "tennis_wta_italian_open",
+  "golf_pga_tour",
+  "golf_pga_championship_winner",
+  "boxing_boxing"
+];
+
+function sportTitleFromKey(sportKey = "") {
+  const key = String(sportKey);
+  if (key === "basketball_nba") return "NBA";
+  if (key === "basketball_wnba") return "WNBA";
+  if (key === "baseball_mlb") return "MLB";
+  if (key === "icehockey_nhl") return "NHL";
+  if (key === "americanfootball_nfl") return "NFL";
+  if (key === "basketball_ncaab") return "NCAABB";
+  if (key === "basketball_euroleague") return "EuroLeague";
+  if (key.startsWith("soccer_")) return "Soccer";
+  if (key.startsWith("tennis_")) return "Tennis";
+  if (key.startsWith("golf_")) return "Golf";
+  if (key === "boxing_boxing") return "Boxing";
+  return "Other";
+}
+
+function fnv1aHashInt(input) {
+  let hash = 0x811c9dc5;
+  const text = String(input || "");
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  const unsigned = hash >>> 0;
+  return unsigned || 1;
+}
+
+function syntheticExternalId(kind, ...parts) {
+  const signature = `${kind}:${parts.map((part) => String(part || "")).join("|")}`;
+  return -fnv1aHashInt(signature);
+}
+
+function abbreviationFromName(name, fallback = "UNK") {
+  const words = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!words.length) return fallback;
+  if (words.length === 1) return words[0].slice(0, 3).toUpperCase();
+  return `${words[0][0] || ""}${words[words.length - 1][0] || ""}`.toUpperCase();
+}
+
+function inferStatusFromCommence(commenceIso) {
+  if (!commenceIso) return "scheduled";
+  const start = new Date(commenceIso).getTime();
+  if (!Number.isFinite(start)) return "scheduled";
+  const now = Date.now();
+  const elapsedMinutes = (now - start) / (1000 * 60);
+  if (elapsedMinutes >= -10 && elapsedMinutes <= 240) return "live";
+  return "scheduled";
+}
+
 function mapTeamFromBallDontLie(team, standingMap = new Map()) {
   const standing = standingMap.get(team.id) || {};
   return {
@@ -36,6 +109,8 @@ function mapTeamFromBallDontLie(team, standingMap = new Map()) {
 function mapGameFromBallDontLie(game) {
   return {
     external_id: game.id,
+    sport_key: "basketball_nba",
+    league: "NBA",
     season: toInt(game.season, new Date(game.date).getUTCFullYear()),
     date: String(game.date || "").slice(0, 10),
     commence_time: game.date || null,
@@ -213,6 +288,87 @@ function selectMostRecentByMarket(rows) {
   return [...selected.values()];
 }
 
+function calibrateFromHistory(repo, lookbackDays = 45) {
+  const from = addDays(todayIso(), -lookbackDays);
+  const to = todayIso();
+  const predictions = repo.getPredictionsBetween(from, to).filter((p) => p.market_type === "Moneyline");
+  const games = new Map(repo.getGamesBetween(from, to).map((game) => [game.external_id, game]));
+  let correct = 0;
+  let total = 0;
+  for (const prediction of predictions) {
+    const game = games.get(prediction.game_external_id);
+    if (!game || String(game.status).toLowerCase() !== "final") continue;
+    const pick = String(prediction.pick || "").toLowerCase();
+    const homePick = pick.includes(String(game.home_team_abbr || "").toLowerCase());
+    const winner = Number(game.home_score || 0) > Number(game.away_score || 0) ? "home" : "away";
+    if ((homePick && winner === "home") || (!homePick && winner === "away")) correct += 1;
+    total += 1;
+  }
+  if (!total) return { slope: 1, intercept: 0 };
+  const accuracy = correct / total;
+  return {
+    slope: round(0.9 + (accuracy - 0.5) * 0.6, 3),
+    intercept: round((accuracy - 0.5) * 0.35, 3)
+  };
+}
+
+function mapSyntheticTeam({ sportKey, teamName }) {
+  const externalId = syntheticExternalId("team", sportKey, teamName);
+  const cleanName = String(teamName || "Unknown");
+  return {
+    external_id: externalId,
+    abbreviation: abbreviationFromName(cleanName),
+    city: "",
+    name: cleanName,
+    full_name: cleanName,
+    conference: sportTitleFromKey(sportKey),
+    division: "",
+    wins: 0,
+    losses: 0,
+    home_record: null,
+    road_record: null,
+    net_rating: null,
+    offense_rating: null,
+    defense_rating: null,
+    pace: null,
+    updated_at: nowIso()
+  };
+}
+
+function mapGameFromOddsEvent(event) {
+  const sportKey = event.sport_key || "other";
+  const gameExternalId = syntheticExternalId(
+    "game",
+    sportKey,
+    event.providerEventId || `${event.home_team}-${event.away_team}-${event.commence_time}`
+  );
+  const commenceIso = event.commence_time || null;
+  const date = commenceIso ? String(commenceIso).slice(0, 10) : todayIso();
+  return {
+    external_id: gameExternalId,
+    sport_key: sportKey,
+    league: event.sport_title || sportTitleFromKey(sportKey),
+    season: new Date(commenceIso || Date.now()).getUTCFullYear(),
+    date,
+    commence_time: commenceIso,
+    status: inferStatusFromCommence(commenceIso),
+    period: 0,
+    clock: null,
+    postseason: 0,
+    home_team_external_id: syntheticExternalId("team", sportKey, event.home_team || "Home"),
+    away_team_external_id: syntheticExternalId("team", sportKey, event.away_team || "Away"),
+    home_score: 0,
+    away_score: 0,
+    home_record: null,
+    away_record: null,
+    home_rest_days: null,
+    away_rest_days: null,
+    is_back_to_back_home: 0,
+    is_back_to_back_away: 0,
+    updated_at: nowIso()
+  };
+}
+
 export function createSyncService({ repo, balldontlie, odds }) {
   const status = {
     booted_at: nowIso(),
@@ -246,6 +402,21 @@ export function createSyncService({ repo, balldontlie, odds }) {
       for (const game of games) allGames.push(mapGameFromBallDontLie(game));
     }
     if (allGames.length) {
+      allGames.sort((a, b) => `${a.date} ${a.commence_time || ""}`.localeCompare(`${b.date} ${b.commence_time || ""}`));
+      const lastDateByTeam = new Map();
+      for (const game of allGames) {
+        const homePrev = lastDateByTeam.get(game.home_team_external_id);
+        const awayPrev = lastDateByTeam.get(game.away_team_external_id);
+        const currentDate = new Date(`${game.date}T00:00:00Z`);
+        const homeRest = homePrev ? Math.max(0, Math.round((currentDate - homePrev) / (1000 * 60 * 60 * 24)) - 1) : 2;
+        const awayRest = awayPrev ? Math.max(0, Math.round((currentDate - awayPrev) / (1000 * 60 * 60 * 24)) - 1) : 2;
+        game.home_rest_days = homeRest;
+        game.away_rest_days = awayRest;
+        game.is_back_to_back_home = homeRest === 0 ? 1 : 0;
+        game.is_back_to_back_away = awayRest === 0 ? 1 : 0;
+        lastDateByTeam.set(game.home_team_external_id, currentDate);
+        lastDateByTeam.set(game.away_team_external_id, currentDate);
+      }
       repo.upsertGames(allGames);
       const uniqueTeamIds = [...new Set(allGames.flatMap((game) => [game.home_team_external_id, game.away_team_external_id]))];
       for (const teamExternalId of uniqueTeamIds) {
@@ -266,18 +437,47 @@ export function createSyncService({ repo, balldontlie, odds }) {
   }
 
   async function syncOddsAndPredictions({ from = todayIso(), to = addDays(todayIso(), 5) } = {}) {
+    const events = [];
+    if (typeof odds.getOddsBySport === "function") {
+      for (const sportKey of SUPPORTED_SPORT_KEYS) {
+        const markets =
+          sportKey.startsWith("tennis_") ||
+          sportKey.startsWith("boxing_") ||
+          sportKey.startsWith("golf_")
+            ? ["h2h"]
+            : ["h2h", "spreads", "totals"];
+        const rows = await odds.getOddsBySport(sportKey, markets);
+        events.push(...rows);
+      }
+    } else {
+      events.push(...(await odds.getNbaOdds()));
+    }
+
+    const syntheticTeams = [];
+    const syntheticGames = [];
+    const eventsBySignature = new Map();
+
+    for (const event of events) {
+      const sportKey = event.sport_key || "basketball_nba";
+      if (!event.home_team || !event.away_team) continue;
+      const dateKey = String(event.commence_time || "").slice(0, 10) || from;
+      eventsBySignature.set(eventSignature(sportKey, event.home_team, event.away_team, dateKey), event);
+
+      if (sportKey === "basketball_nba") continue;
+      syntheticTeams.push(mapSyntheticTeam({ sportKey, teamName: event.home_team || "Home" }));
+      syntheticTeams.push(mapSyntheticTeam({ sportKey, teamName: event.away_team || "Away" }));
+      syntheticGames.push(mapGameFromOddsEvent(event));
+    }
+
+    if (syntheticTeams.length) repo.upsertTeams(syntheticTeams);
+    if (syntheticGames.length) repo.upsertGames(syntheticGames);
+
     const games = repo.getGamesBetween(from, to);
     if (!games.length) return;
 
-    const events = await odds.getNbaOdds();
-    const eventsBySignature = new Map();
-    for (const event of events) {
-      const key = `${normalizeName(event.home_team)}-${normalizeName(event.away_team)}-${String(event.commence_time || "").slice(0, 10)}`;
-      eventsBySignature.set(key, event);
-    }
-
     for (const game of games) {
-      const signature = `${normalizeName(game.home_team_name)}-${normalizeName(game.away_team_name)}-${game.date}`;
+      const sportKey = game.sport_key || "basketball_nba";
+      const signature = eventSignature(sportKey, game.home_team_name, game.away_team_name, game.date);
       const event = eventsBySignature.get(signature);
       if (!event) continue;
       const oddsRows = extractOddsRows(event, game.external_id);
@@ -286,6 +486,7 @@ export function createSyncService({ repo, balldontlie, odds }) {
     }
 
     const currentSettings = repo.getSettings();
+    const calibration = calibrateFromHistory(repo, 60);
     const trackedBets = repo.listTrackedBets();
     const lossStreak = streakLosses(
       trackedBets
@@ -296,23 +497,28 @@ export function createSyncService({ repo, balldontlie, odds }) {
     for (const game of games) {
       const latestOdds = selectMostRecentByMarket(repo.getLatestOddsForGame(game.external_id));
       const openingOdds = selectMostRecentByMarket(repo.getOpeningOddsForGame(game.external_id));
+      if (!latestOdds.length) continue;
       const injuriesHome = repo.getInjuriesByTeam(game.home_team_external_id);
       const injuriesAway = repo.getInjuriesByTeam(game.away_team_external_id);
       const recentHomeGames = repo.getRecentTeamGames(game.home_team_external_id, 10);
       const recentAwayGames = repo.getRecentTeamGames(game.away_team_external_id, 10);
       const headToHead = repo.getHeadToHead(game.home_team_external_id, game.away_team_external_id, 10);
 
+      const sportKey = game.sport_key || "basketball_nba";
+      const homeAbbr = game.home_team_abbr || abbreviationFromName(game.home_team_name, "HOME");
+      const awayAbbr = game.away_team_abbr || abbreviationFromName(game.away_team_name, "AWAY");
+
       const model = buildPredictionsForGame({
         game,
         homeTeam: {
-          abbreviation: game.home_team_abbr,
+          abbreviation: homeAbbr,
           net_rating: game.home_net,
           offense_rating: game.home_offense,
           defense_rating: game.home_defense,
           pace: game.home_pace
         },
         awayTeam: {
-          abbreviation: game.away_team_abbr,
+          abbreviation: awayAbbr,
           net_rating: game.away_net,
           offense_rating: game.away_offense,
           defense_rating: game.away_defense,
@@ -326,7 +532,9 @@ export function createSyncService({ repo, balldontlie, odds }) {
         recentAwayMargins: teamMargins(recentAwayGames, game.away_team_external_id),
         headToHead,
         settings: currentSettings,
-        lossStreak
+        lossStreak,
+        calibration,
+        sportKey
       });
 
       const rows = model.predictions.map((prediction) => ({
@@ -344,6 +552,7 @@ export function createSyncService({ repo, balldontlie, odds }) {
         reason: prediction.reason,
         created_at: nowIso()
       }));
+      if (!rows.length) continue;
       repo.replacePredictions(game.external_id, rows);
     }
 
