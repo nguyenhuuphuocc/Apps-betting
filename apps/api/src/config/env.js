@@ -33,5 +33,8 @@ if (!parsed.success) {
 export const env = {
   ...parsed.data,
   API_PORT: parsed.data.PORT ?? parsed.data.API_PORT,
-  supportedSportKeys: parsed.data.SUPPORTED_SPORT_KEYS.split(",").map((key) => key.trim())
+  supportedSportKeys: parsed.data.SUPPORTED_SPORT_KEYS.split(",").map((key) => key.trim()),
+  frontendOrigins: parsed.data.FRONTEND_ORIGIN.split(",")
+    .map((origin) => origin.trim().replace(/^["']|["']$/g, ""))
+    .filter(Boolean)
 };

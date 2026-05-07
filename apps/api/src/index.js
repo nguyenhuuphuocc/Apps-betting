@@ -16,13 +16,21 @@ import { createOddsApiClient } from "./services/providers/oddsApi.js";
 
 const app = express();
 const server = http.createServer(app);
+const allowedOrigins = env.frontendOrigins?.length ? env.frontendOrigins : [env.FRONTEND_ORIGIN];
+
+const corsOrigin = (origin, callback) => {
+  if (!origin) return callback(null, true);
+  if (allowedOrigins.includes(origin)) return callback(null, true);
+  return callback(new Error(`CORS origin not allowed: ${origin}`));
+};
+
 const io = new SocketServer(server, {
   cors: {
-    origin: env.FRONTEND_ORIGIN
+    origin: allowedOrigins
   }
 });
 
-app.use(cors({ origin: env.FRONTEND_ORIGIN, credentials: true }));
+app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use(helmet());
 app.use(express.json({ limit: "2mb" }));
 app.use(morgan("dev"));
