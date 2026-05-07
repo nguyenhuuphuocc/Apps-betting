@@ -47,3 +47,32 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #2b4167;
 }
+
+@keyframes ticker-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.opportunity-ticker-track {
+  display: inline-flex;
+  min-width: max-content;
+  gap: 1rem;
+  animation: ticker-scroll 36s linear infinite;
+}
+
+@keyframes pulse-accent {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(57, 255, 136, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(57, 255, 136, 0);
+  }
+}
+
+.live-pulse {
+  animation: pulse-accent 1.8s ease-in-out infinite;
+}

@@ -184,3 +184,33 @@ export type LiveInsight = {
   shootingDelta: number;
   opportunity: string;
 };
+
+export type OpportunityItem = {
+  id: string;
+  sportKey: string;
+  league: string;
+  matchup: string;
+  eventId: string;
+  betType: string;
+  pick: string;
+  sportsbook: string;
+  odds: number | null;
+  aiProbability: number;
+  impliedProbability: number;
+  edgePct: number;
+  evPct: number;
+  confidence: number;
+  risk: "Low" | "Medium" | "High";
+  suggestedUnits: number;
+  sharpMoneyPct: number;
+  publicMoneyPct: number;
+  opportunityScore: number;
+  tag: "Elite Value" | "Best Bet of the Day" | "High Confidence" | "Underdog Value" | "Watch";
+  roiProjectionPct: number;
+  historicalHitRatePct: number;
+  lineMovePct: number;
+  reverseLineMovement: boolean;
+  steamMove: boolean;
+  timeToStartMins: number;
+  reason: string;
+};

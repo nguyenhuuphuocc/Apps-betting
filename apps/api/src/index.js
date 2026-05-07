@@ -42,8 +42,13 @@ await store.init();
 const oddsApi = createOddsApiClient({
   apiKey: env.ODDS_API_KEY,
   baseUrl: env.ODDS_API_BASE_URL,
+  regions: env.ODDS_REGIONS,
+  oddsFormat: env.ODDS_FORMAT,
   timeoutMs: env.REQUEST_TIMEOUT_MS,
-  retryAttempts: env.RETRY_ATTEMPTS
+  retryAttempts: env.RETRY_ATTEMPTS,
+  oddsProvider: env.ODDS_PROVIDER,
+  sportsDataIoApiKey: env.SPORTSDATAIO_API_KEY,
+  sportsDataIoBaseUrl: env.SPORTSDATAIO_BASE_URL
 });
 
 const ballDontLie = createBallDontLieClient({
@@ -92,21 +97,29 @@ io.on("connection", (socket) => {
   socket.emit("server:ready", { at: new Date().toISOString() });
 });
 
-cron.schedule("*/2 * * * *", async () => {
-  try {
-    const syncResult = await service.syncOddsSnapshot();
-    const predictions = await service.generatePredictions();
-    io.emit("sync:tick", {
-      at: new Date().toISOString(),
-      eventsSynced: syncResult.eventsSynced,
-      predictions: predictions.length
-    });
-  } catch (error) {
-    io.emit("sync:error", { message: error.message });
-  }
-});
+if (env.autoSyncEnabled) {
+  cron.schedule(env.autoSyncCron, async () => {
+    try {
+      const syncResult = await service.syncOddsSnapshot({
+        sportKeys: env.autoSyncSportKeys.length ? env.autoSyncSportKeys : null
+      });
+      const predictions = await service.generatePredictions();
+      io.emit("sync:tick", {
+        at: new Date().toISOString(),
+        eventsSynced: syncResult.eventsSynced,
+        predictions: predictions.length
+      });
+    } catch (error) {
+      io.emit("sync:error", { message: error.message });
+    }
+  });
+}
 
 server.listen(env.API_PORT, () => {
   // eslint-disable-next-line no-console
   console.log(`Betting Intelligence API running on http://localhost:${env.API_PORT}`);
+  // eslint-disable-next-line no-console
+  console.log(
+    `[sync] auto-sync ${env.autoSyncEnabled ? `enabled (${env.autoSyncCron})` : "disabled"}`
+  );
 });

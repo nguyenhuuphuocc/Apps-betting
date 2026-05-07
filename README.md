@@ -82,6 +82,7 @@ apps/
 - `GET /api/v1/live-insights?sportKey=...`
 - `GET /api/v1/player-props?sportKey=...`
 - `GET /api/v1/notifications`
+- `GET /api/v1/opportunities?sportKey=...&limit=50`
 - `GET /api/v1/team/:teamId/analytics`
 - `GET /api/v1/player/:playerId/analytics`
 - `GET /api/v1/game/:eventId/analysis`
@@ -105,6 +106,7 @@ apps/
 - `/api/predictions`
 - `/api/player-props`
 - `/api/notifications`
+- `/api/opportunities`
 - `/api/sharp-money`
 - `/api/ev-scanner`
 - `/api/backtest`
@@ -144,6 +146,11 @@ FRONTEND_ORIGIN=http://localhost:3000
 
 ODDS_API_KEY=...
 ODDS_API_BASE_URL=https://api.the-odds-api.com/v4
+ODDS_PROVIDER=theoddsapi
+ODDS_REGIONS=us,uk,eu
+ODDS_FORMAT=american
+SPORTSDATAIO_API_KEY=
+SPORTSDATAIO_BASE_URL=https://api.sportsdata.io
 BALLDONTLIE_API_KEY=...
 OPENAI_API_KEY=...
 OPENAI_MODEL=gpt-4.1-mini
@@ -154,6 +161,9 @@ REDIS_URL=redis://...
 CACHE_TTL_SECONDS=120
 REQUEST_TIMEOUT_MS=12000
 RETRY_ATTEMPTS=3
+ENABLE_AUTO_SYNC=false
+AUTO_SYNC_CRON=0 */6 * * *
+AUTO_SYNC_SPORT_KEYS=basketball_nba,baseball_mlb
 SUPPORTED_SPORT_KEYS=basketball_nba,basketball_wnba,baseball_mlb,icehockey_nhl,americanfootball_nfl,basketball_ncaab,basketball_euroleague,soccer_epl,soccer_fifa_world_cup,tennis_atp_italian_open,tennis_wta_italian_open,golf_pga_tour,boxing_boxing
 ```
 
@@ -164,6 +174,18 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
 ```
 
 > `DATABASE_URL` and `REDIS_URL` are strongly recommended for production. If invalid or unavailable, the app falls back to in-memory mode.
+>
+> For free Odds API plans, keep `ENABLE_AUTO_SYNC=false` or use a very slow cron (e.g. every 6-12h) to avoid `429` rate-limit errors.
+>
+> To use SportsDataIO as your primary odds source, set:
+> - `ODDS_PROVIDER=sportsdataio`
+> - `SPORTSDATAIO_API_KEY=<your_key>`
+> - optional: `SUPPORTED_SPORT_KEYS=basketball_nba,baseball_mlb,icehockey_nhl,americanfootball_nfl,...`
+>
+> To maximize visible betting boards from The Odds API:
+> - set `ODDS_PROVIDER=theoddsapi`
+> - set `ODDS_REGIONS=us,uk,eu` (or include more if your plan allows)
+> - set `ODDS_FORMAT=american`
 
 ---
 

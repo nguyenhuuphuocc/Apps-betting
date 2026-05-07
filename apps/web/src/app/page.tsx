@@ -39,6 +39,9 @@ import { NotificationsPanel } from "@/components/dashboard/NotificationsPanel";
 import { OddsComparisonTable } from "@/components/dashboard/OddsComparisonTable";
 import { PlayerPropsPanel } from "@/components/dashboard/PlayerPropsPanel";
 import { SharpMoneyTable } from "@/components/dashboard/SharpMoneyTable";
+import { OpportunityHighlights } from "@/components/dashboard/OpportunityHighlights";
+import { OpportunityHeatmap } from "@/components/dashboard/OpportunityHeatmap";
+import { TopOpportunitiesFeed } from "@/components/dashboard/TopOpportunitiesFeed";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { fetcher } from "@/lib/api";
 
@@ -65,6 +68,10 @@ export default function HomePage() {
   const [tab, setTab] = useState<TabKey>("dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState<string>(new Date().toISOString());
+  const [leanMode, setLeanMode] = useState<"strict" | "leans">("leans");
+  const [riskFilter, setRiskFilter] = useState<"all" | "Low" | "Medium" | "High">("all");
+  const [minOpportunityScore, setMinOpportunityScore] = useState<number>(55);
+  const [liveOnly, setLiveOnly] = useState<boolean>(false);
 
   const selectTab = (next: TabKey) => {
     setTab(next);
@@ -93,6 +100,7 @@ export default function HomePage() {
     notificationsQuery,
     playerPropsQuery,
     liveInsightsQuery,
+    opportunitiesQuery,
     kpis,
     triggerSync,
     runBacktest,
@@ -104,10 +112,10 @@ export default function HomePage() {
     const keys = statusQuery.data?.supportedSports?.length
       ? statusQuery.data.supportedSports
       : Object.keys(sportLabels);
-    return keys.map((key) => ({
+    return [{ key: "all", label: "All Sports Auto Scan" }, ...keys.map((key) => ({
       key,
       label: sportLabels[key] ?? key.replaceAll("_", " ").toUpperCase()
-    }));
+    }))];
   }, [statusQuery.data?.supportedSports]);
 
   const selectedEvent = liveQuery.data?.[0]?.eventId;
@@ -154,10 +162,41 @@ export default function HomePage() {
     [evQuery.data]
   );
 
+  const tickerItems = useMemo(() => {
+    const base = (opportunitiesQuery.data ?? []).slice(0, 8).map((item) => {
+      const oddsText =
+        item.odds === null ? "n/a" : item.odds > 0 ? `+${item.odds}` : `${item.odds}`;
+      return `${item.league} ${item.pick} ${oddsText} | EV ${item.evPct.toFixed(2)}% | Score ${item.opportunityScore.toFixed(1)}`;
+    });
+    return base.length ? [...base, ...base] : [];
+  }, [opportunitiesQuery.data]);
+
+  const filteredOpportunities = useMemo(() => {
+    const rows = opportunitiesQuery.data ?? [];
+    return rows.filter((item) => {
+      const riskOk = riskFilter === "all" ? true : item.risk === riskFilter;
+      const scoreOk = item.opportunityScore >= minOpportunityScore;
+      const liveOk = liveOnly ? item.timeToStartMins <= 180 : true;
+      const strictOk =
+        leanMode === "strict"
+          ? item.evPct > 0 && item.edgePct > 1.5 && item.confidence >= 6.2
+          : true;
+      return riskOk && scoreOk && liveOk && strictOk;
+    });
+  }, [leanMode, liveOnly, minOpportunityScore, opportunitiesQuery.data, riskFilter]);
+
+  const bestAvailableLeans = useMemo(() => {
+    const rows = filteredOpportunities;
+    return [...rows]
+      .sort((a, b) => b.opportunityScore - a.opportunityScore || b.confidence - a.confidence)
+      .slice(0, 6);
+  }, [filteredOpportunities]);
+
   const hasNoDataForSport =
     !liveQuery.isLoading &&
     !liveQuery.data?.length &&
-    !(evQuery.data ?? []).some((row) => row.sport_key === sportKey);
+    !(evQuery.data ?? []).some((row) => row.sport_key === sportKey) &&
+    sportKey !== "all";
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-[1800px] p-3 lg:p-6">
@@ -233,6 +272,9 @@ export default function HomePage() {
                 <span className="rounded-full border border-warning/30 bg-warning/10 px-3 py-1 text-xs text-warning">
                   Predictions are not guaranteed
                 </span>
+                <span className="live-pulse rounded-full border border-accent/40 bg-accent/10 px-3 py-1 text-xs text-accent">
+                  Live odds pulse
+                </span>
                 <button
                   onClick={async () => {
                     await triggerSync();
@@ -269,6 +311,25 @@ export default function HomePage() {
               </Link>
             </div>
           </header>
+
+          <section className="overflow-hidden rounded-xl border border-accentBlue/25 bg-panelSoft/60 p-2">
+            {tickerItems.length ? (
+              <div className="opportunity-ticker-track">
+                {tickerItems.map((line, index) => (
+                  <span
+                    key={`${line}-${index}`}
+                    className="rounded-lg border border-white/15 bg-bg px-3 py-1 text-xs text-white/80"
+                  >
+                    {line}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="px-2 py-1 text-xs text-white/60">
+                Opportunity ticker waiting for live market sync.
+              </p>
+            )}
+          </section>
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             <KpiCard label="Live Games" value={`${kpis.liveGames}`} hint="Upcoming + live events" />
@@ -310,6 +371,69 @@ export default function HomePage() {
                 <MiniBoard title="Watchlist Bets" tone="yellow" items={watchlist.map((row) => `${row.pick} | EV ${Number(row.ev_pct).toFixed(2)}%`)} empty="No watchlist candidates right now." />
                 <MiniBoard title="Avoid / Trap Bets" tone="red" items={avoid.map((row) => `${row.pick} | EV ${Number(row.ev_pct).toFixed(2)}%`)} empty="No obvious trap signal for current filter." />
               </div>
+
+              <section className="rounded-2xl border border-white/10 bg-panel p-4 shadow-panel">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-white/85">
+                    Opportunity Controls
+                  </h3>
+                  <p className="text-xs text-white/60">
+                    Tune feed like a trading terminal. Strict mode only shows high-quality +EV spots.
+                  </p>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <label className="grid gap-1 text-xs text-white/60">
+                    <span>Feed Mode</span>
+                    <select
+                      value={leanMode}
+                      onChange={(event) => setLeanMode(event.target.value as "strict" | "leans")}
+                      className="field"
+                    >
+                      <option value="leans">Best Available Leans</option>
+                      <option value="strict">Strict +EV Only</option>
+                    </select>
+                  </label>
+                  <label className="grid gap-1 text-xs text-white/60">
+                    <span>Risk Filter</span>
+                    <select
+                      value={riskFilter}
+                      onChange={(event) =>
+                        setRiskFilter(event.target.value as "all" | "Low" | "Medium" | "High")
+                      }
+                      className="field"
+                    >
+                      <option value="all">All Risk Levels</option>
+                      <option value="Low">Low</option>
+                      <option value="Medium">Medium</option>
+                      <option value="High">High</option>
+                    </select>
+                  </label>
+                  <label className="grid gap-1 text-xs text-white/60">
+                    <span>Min Opportunity Score ({minOpportunityScore})</span>
+                    <input
+                      type="range"
+                      min={40}
+                      max={90}
+                      step={1}
+                      value={minOpportunityScore}
+                      onChange={(event) => setMinOpportunityScore(Number(event.target.value))}
+                    />
+                  </label>
+                  <label className="flex items-end gap-2 text-xs text-white/70">
+                    <input
+                      type="checkbox"
+                      checked={liveOnly}
+                      onChange={(event) => setLiveOnly(event.target.checked)}
+                    />
+                    <span>Live/Near-Live only (next 3h)</span>
+                  </label>
+                </div>
+              </section>
+
+              <TopOpportunitiesFeed items={filteredOpportunities} />
+              <OpportunityHighlights items={filteredOpportunities} />
+              <OpportunityHeatmap items={filteredOpportunities} />
+              <BestAvailableLeansPanel items={bestAvailableLeans} />
 
               {hasNoDataForSport ? (
                 <section className="rounded-xl border border-warning/35 bg-warning/10 p-3 text-sm text-warning">
@@ -459,5 +583,82 @@ function StatusCard({ title, value }: { title: string; value: string }) {
       <p className="text-xs uppercase tracking-wide text-white/60">{title}</p>
       <p className="mt-1 text-sm font-medium text-white">{value}</p>
     </article>
+  );
+}
+
+function BestAvailableLeansPanel({
+  items
+}: {
+  items: Array<{
+    id: string;
+    league: string;
+    matchup: string;
+    pick: string;
+    evPct: number;
+    confidence: number;
+    opportunityScore: number;
+    risk: "Low" | "Medium" | "High";
+    reason: string;
+  }>;
+}) {
+  return (
+    <section className="rounded-2xl border border-accentBlue/30 bg-accentBlue/10 p-4 shadow-panel">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-white">
+          Best Available Leans
+        </h3>
+        <span className="rounded-full border border-warning/40 bg-warning/15 px-2 py-0.5 text-[11px] text-warning">
+          Not guaranteed - stake small
+        </span>
+      </div>
+      <p className="mt-1 text-xs text-white/70">
+        This list appears when strict +EV filters are thin. These are model-lean ideas, not strong
+        official plays.
+      </p>
+
+      <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+        {items.length ? (
+          items.map((item) => (
+            <article key={item.id} className="rounded-lg border border-white/15 bg-bg p-3">
+              <p className="text-sm font-semibold text-white">{item.pick}</p>
+              <p className="mt-0.5 text-xs text-white/60">
+                {item.league} - {item.matchup}
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                <span className="rounded bg-white/10 px-2 py-1 text-white/80">
+                  Score {item.opportunityScore.toFixed(1)}
+                </span>
+                <span className="rounded bg-white/10 px-2 py-1 text-white/80">
+                  EV {item.evPct.toFixed(2)}%
+                </span>
+                <span className="rounded bg-white/10 px-2 py-1 text-white/80">
+                  Conf {item.confidence.toFixed(1)}/10
+                </span>
+                <span
+                  className={`rounded px-2 py-1 ${
+                    item.risk === "Low"
+                      ? "bg-accent/15 text-accent"
+                      : item.risk === "Medium"
+                        ? "bg-warning/15 text-warning"
+                        : "bg-danger/15 text-danger"
+                  }`}
+                >
+                  Risk {item.risk}
+                </span>
+              </div>
+              <p className="mt-2 text-xs text-white/70">{item.reason}</p>
+            </article>
+          ))
+        ) : (
+          <div className="rounded-lg border border-dashed border-white/25 bg-bg p-3 text-xs text-white/60 md:col-span-2 xl:col-span-3">
+            No lean candidates yet. Sync data and try again in a few minutes.
+          </div>
+        )}
+      </div>
+
+      <p className="mt-3 text-xs text-warning">
+        Responsible betting: never chase losses; limit exposure to 1-3% bankroll per position.
+      </p>
+    </section>
   );
 }

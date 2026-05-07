@@ -15,28 +15,38 @@ import type {
   LiveGame,
   LiveInsight,
   NotificationItem,
+  OpportunityItem,
   OddsComparisonRow,
   PlayerPropInsight,
   SharpSignal
 } from "@/types";
 
 export function useDashboardData() {
-  const [sportKey, setSportKey] = useState<string>("basketball_nba");
+  const [sportKey, setSportKey] = useState<string>("all");
   const [syncMessage, setSyncMessage] = useState<string>("Connected");
   const [sessionId, setSessionId] = useState<string>("default-session");
+  const scopedSportKey = sportKey === "all" ? null : sportKey;
 
-  const liveQuery = useSWR<LiveGame[]>(`/api/v1/live-games?sportKey=${sportKey}`, fetcher, {
-    refreshInterval: 30000
-  });
+  const liveQuery = useSWR<LiveGame[]>(
+    scopedSportKey ? `/api/v1/live-games?sportKey=${scopedSportKey}` : "/api/v1/live-games",
+    fetcher,
+    {
+      refreshInterval: 30000
+    }
+  );
   const evQuery = useSWR<EvBet[]>("/api/v1/ev-bets?minEdge=2&minConfidence=6", fetcher, {
     refreshInterval: 45000
   });
   const statusQuery = useSWR<DashboardStatus>("/api/v1/status", fetcher, {
     refreshInterval: 60000
   });
-  const sharpQuery = useSWR<SharpSignal[]>(`/api/v1/sharp-money?sportKey=${sportKey}`, fetcher, {
-    refreshInterval: 45000
-  });
+  const sharpQuery = useSWR<SharpSignal[]>(
+    scopedSportKey ? `/api/v1/sharp-money?sportKey=${scopedSportKey}` : "/api/v1/sharp-money",
+    fetcher,
+    {
+      refreshInterval: 45000
+    }
+  );
   const oddsCompareQuery = useSWR<OddsComparisonRow[]>(
     liveQuery.data?.[0]?.eventId ? `/api/v1/odds-comparison?eventId=${liveQuery.data[0].eventId}` : null,
     fetcher,
@@ -52,19 +62,30 @@ export function useDashboardData() {
       refreshInterval: 0
     }
   );
-  const aiPicksQuery = useSWR<AIPick[]>(`/api/v1/ai-picks?sportKey=${sportKey}`, fetcher, {
-    refreshInterval: 30000
-  });
+  const aiPicksQuery = useSWR<AIPick[]>(
+    scopedSportKey ? `/api/v1/ai-picks?sportKey=${scopedSportKey}` : "/api/v1/ai-picks",
+    fetcher,
+    {
+      refreshInterval: 30000
+    }
+  );
   const notificationsQuery = useSWR<NotificationItem[]>("/api/v1/notifications", fetcher, {
     refreshInterval: 30000
   });
   const playerPropsQuery = useSWR<PlayerPropInsight[]>(
-    `/api/v1/player-props?sportKey=${sportKey}`,
+    scopedSportKey ? `/api/v1/player-props?sportKey=${scopedSportKey}` : "/api/v1/player-props",
     fetcher,
     { refreshInterval: 60000 }
   );
   const liveInsightsQuery = useSWR<LiveInsight[]>(
-    `/api/v1/live-insights?sportKey=${sportKey}`,
+    scopedSportKey ? `/api/v1/live-insights?sportKey=${scopedSportKey}` : "/api/v1/live-insights",
+    fetcher,
+    { refreshInterval: 30000 }
+  );
+  const opportunitiesQuery = useSWR<OpportunityItem[]>(
+    scopedSportKey
+      ? `/api/v1/opportunities?sportKey=${scopedSportKey}&limit=80`
+      : "/api/v1/opportunities?limit=80",
     fetcher,
     { refreshInterval: 30000 }
   );
@@ -110,8 +131,8 @@ export function useDashboardData() {
 
   async function triggerSync() {
     const response = await postJson<{ eventsSynced: number; predictions: number; errors?: Array<{ sportKey: string; message: string }> }>(
-      `/api/v1/sync?sportKey=${encodeURIComponent(sportKey)}`,
-      { sportKey }
+      scopedSportKey ? `/api/v1/sync?sportKey=${encodeURIComponent(scopedSportKey)}` : "/api/v1/sync",
+      scopedSportKey ? { sportKey: scopedSportKey } : {}
     );
     await Promise.all([
       liveQuery.mutate(),
@@ -121,11 +142,13 @@ export function useDashboardData() {
       aiPicksQuery.mutate(),
       playerPropsQuery.mutate(),
       liveInsightsQuery.mutate(),
-      notificationsQuery.mutate()
+      notificationsQuery.mutate(),
+      opportunitiesQuery.mutate()
     ]);
     if (response.errors?.length) {
+      const firstError = response.errors[0];
       setSyncMessage(
-        `Sync partial: ${response.eventsSynced} events / ${response.predictions} preds (${response.errors.length} sport errors)`
+        `Sync partial: ${response.eventsSynced} events / ${response.predictions} preds (${response.errors.length} sport errors: ${firstError.sportKey} ${firstError.message})`
       );
     } else {
       setSyncMessage(
@@ -187,6 +210,7 @@ export function useDashboardData() {
     notificationsQuery,
     playerPropsQuery,
     liveInsightsQuery,
+    opportunitiesQuery,
     kpis,
     triggerSync,
     runBacktest,

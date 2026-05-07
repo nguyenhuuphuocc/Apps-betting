@@ -30,6 +30,7 @@ export function createRoutes({ env, service, chatService, io }) {
       now: new Date().toISOString(),
       keys: {
         odds: Boolean(env.ODDS_API_KEY),
+        sportsdataio: Boolean(env.SPORTSDATAIO_API_KEY),
         balldontlie: Boolean(env.BALLDONTLIE_API_KEY),
         openai: Boolean(env.OPENAI_API_KEY)
       }
@@ -38,12 +39,20 @@ export function createRoutes({ env, service, chatService, io }) {
 
   router.get("/api/v1/status", async (_req, res) => {
     res.json({
-      provider: "odds+balldontlie",
+      provider:
+        env.ODDS_PROVIDER === "sportsdataio"
+          ? "sportsdataio+balldontlie"
+          : "odds+balldontlie",
+      oddsRegions: env.ODDS_REGIONS,
+      oddsFormat: env.ODDS_FORMAT,
       supportedSports: env.supportedSportKeys,
       cacheTtlSeconds: env.CACHE_TTL_SECONDS,
       realtime: true,
       warnings: [
-        ...(!env.ODDS_API_KEY ? ["ODDS_API_KEY missing"] : []),
+        ...(!env.ODDS_API_KEY && env.ODDS_PROVIDER !== "sportsdataio" ? ["ODDS_API_KEY missing"] : []),
+        ...(!env.SPORTSDATAIO_API_KEY && env.ODDS_PROVIDER === "sportsdataio"
+          ? ["SPORTSDATAIO_API_KEY missing"]
+          : []),
         ...(!env.BALLDONTLIE_API_KEY ? ["BALLDONTLIE_API_KEY missing"] : []),
         ...(!env.OPENAI_API_KEY ? ["OPENAI_API_KEY missing (chat uses fallback mode)"] : [])
       ]
@@ -140,6 +149,12 @@ export function createRoutes({ env, service, chatService, io }) {
 
   router.get("/api/v1/notifications", async (_req, res) => {
     res.json(await service.notificationsFeed());
+  });
+
+  router.get("/api/v1/opportunities", async (req, res) => {
+    const sportKey = req.query.sportKey ? String(req.query.sportKey) : null;
+    const limit = Number(req.query.limit ?? 50);
+    res.json(await service.opportunityFeed({ sportKey, limit }));
   });
 
   router.get("/api/v1/team/:teamId/analytics", async (req, res) => {
@@ -414,6 +429,11 @@ export function createRoutes({ env, service, chatService, io }) {
   });
   router.get("/api/notifications", async (_req, res) => {
     res.json(await service.notificationsFeed());
+  });
+  router.get("/api/opportunities", async (req, res) => {
+    const sportKey = req.query.sportKey ? String(req.query.sportKey) : null;
+    const limit = Number(req.query.limit ?? 50);
+    res.json(await service.opportunityFeed({ sportKey, limit }));
   });
   router.post("/api/alerts", async (req, res) => {
     const payload = {
