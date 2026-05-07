@@ -246,3 +246,5 @@ yarn dev
 - Legacy dashboard files (`index.html`, `app.js`, `server.mjs`) are still present for backward compatibility.
 - New platform runs from `apps/web` + `apps/api`.
 - If you still see the old site in production, verify the deploy service points at `apps/web` and latest commit.
+- For the new terminal-style architecture and module map, see:
+  - `docs/TERMINAL_ARCHITECTURE.md`

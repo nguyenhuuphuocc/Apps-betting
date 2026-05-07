@@ -5,16 +5,25 @@ import type { ComponentType } from "react";
 import Link from "next/link";
 import {
   Activity,
+  BarChart3,
   Bell,
   Bot,
+  BookOpen,
   ChartNoAxesCombined,
   ChevronLeft,
   ChevronRight,
   DollarSign,
+  HeartPulse,
   LayoutDashboard,
+  ListChecks,
+  Radar,
   RefreshCw,
   ShieldAlert,
+  Shuffle,
+  Siren,
+  Stethoscope,
   Target,
+  TrendingDown,
   TrendingUp
 } from "lucide-react";
 import {
@@ -42,6 +51,8 @@ import { SharpMoneyTable } from "@/components/dashboard/SharpMoneyTable";
 import { OpportunityHighlights } from "@/components/dashboard/OpportunityHighlights";
 import { OpportunityHeatmap } from "@/components/dashboard/OpportunityHeatmap";
 import { TopOpportunitiesFeed } from "@/components/dashboard/TopOpportunitiesFeed";
+import { AiInsightPanel } from "@/components/dashboard/AiInsightPanel";
+import { MarketMoversPanel } from "@/components/dashboard/MarketMoversPanel";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { fetcher } from "@/lib/api";
 
@@ -61,8 +72,26 @@ const sportLabels: Record<string, string> = {
   boxing_boxing: "Boxing"
 };
 
-const tabs = ["dashboard", "ev", "sharp", "backtest", "bankroll", "chat"] as const;
-type TabKey = (typeof tabs)[number];
+const navItems = [
+  { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { key: "live_games", label: "Live Games", icon: Activity },
+  { key: "ai_opportunities", label: "AI Opportunities", icon: Radar },
+  { key: "positive_ev", label: "Positive EV Bets", icon: TrendingUp },
+  { key: "player_props", label: "Player Props", icon: ListChecks },
+  { key: "sharp_money", label: "Sharp Money", icon: Siren },
+  { key: "arbitrage", label: "Arbitrage Finder", icon: Shuffle },
+  { key: "ai_predictions", label: "AI Predictions", icon: Bot },
+  { key: "backtesting", label: "Backtesting Lab", icon: ChartNoAxesCombined },
+  { key: "bankroll", label: "Bankroll", icon: DollarSign },
+  { key: "market_movers", label: "Market Movers", icon: TrendingDown },
+  { key: "injury_impact", label: "Injury Impact", icon: Stethoscope },
+  { key: "betting_journal", label: "Betting Journal", icon: BookOpen },
+  { key: "analytics", label: "Analytics", icon: BarChart3 },
+  { key: "settings", label: "Settings", icon: HeartPulse },
+  { key: "chat", label: "BetIQ Chat", icon: Bot }
+] as const;
+
+type TabKey = (typeof navItems)[number]["key"];
 
 export default function HomePage() {
   const [tab, setTab] = useState<TabKey>("dashboard");
@@ -80,7 +109,7 @@ export default function HomePage() {
 
   useEffect(() => {
     const hash = window.location.hash.replace("#", "");
-    if (tabs.includes(hash as TabKey)) {
+    if (navItems.some((item) => item.key === hash)) {
       setTab(hash as TabKey);
     }
   }, []);
@@ -224,12 +253,16 @@ export default function HomePage() {
           </p>
 
           <nav className="grid gap-2">
-            <NavBtn icon={LayoutDashboard} label="Dashboard" collapsed={collapsed} active={tab === "dashboard"} onClick={() => selectTab("dashboard")} />
-            <NavBtn icon={TrendingUp} label="EV Scanner" collapsed={collapsed} active={tab === "ev"} onClick={() => selectTab("ev")} />
-            <NavBtn icon={Activity} label="Sharp Money" collapsed={collapsed} active={tab === "sharp"} onClick={() => selectTab("sharp")} />
-            <NavBtn icon={ChartNoAxesCombined} label="Backtest" collapsed={collapsed} active={tab === "backtest"} onClick={() => selectTab("backtest")} />
-            <NavBtn icon={DollarSign} label="Bankroll" collapsed={collapsed} active={tab === "bankroll"} onClick={() => selectTab("bankroll")} />
-            <NavBtn icon={Bot} label="BetIQ Chat" collapsed={collapsed} active={tab === "chat"} onClick={() => selectTab("chat")} />
+            {navItems.map((item) => (
+              <NavBtn
+                key={item.key}
+                icon={item.icon}
+                label={item.label}
+                collapsed={collapsed}
+                active={tab === item.key}
+                onClick={() => selectTab(item.key)}
+              />
+            ))}
           </nav>
 
           {!collapsed ? (
@@ -456,11 +489,61 @@ export default function HomePage() {
             </div>
           ) : null}
 
-          {tab === "ev" ? <EvTable bets={evQuery.data ?? []} /> : null}
-          {tab === "sharp" ? <SharpMoneyTable rows={sharpQuery.data ?? []} /> : null}
-          {tab === "backtest" ? <BacktestPanel onRun={runBacktest} /> : null}
+          {tab === "live_games" ? (
+            <div className="grid gap-3">
+              <LiveGamesTable games={liveQuery.data ?? []} />
+              <LiveInsightsPanel rows={liveInsightsQuery.data ?? []} />
+            </div>
+          ) : null}
+          {tab === "ai_opportunities" ? (
+            <div className="grid gap-3">
+              <TopOpportunitiesFeed items={filteredOpportunities} />
+              <OpportunityHighlights items={filteredOpportunities} />
+              <OpportunityHeatmap items={filteredOpportunities} />
+              <BestAvailableLeansPanel items={bestAvailableLeans} />
+            </div>
+          ) : null}
+          {tab === "positive_ev" ? <EvTable bets={evQuery.data ?? []} /> : null}
+          {tab === "player_props" ? <PlayerPropsPanel rows={playerPropsQuery.data ?? []} /> : null}
+          {tab === "sharp_money" ? (
+            <div className="grid gap-3">
+              <SharpMoneyTable rows={sharpQuery.data ?? []} />
+              <MarketMoversPanel items={filteredOpportunities} />
+            </div>
+          ) : null}
+          {tab === "arbitrage" ? <ArbitragePanel items={filteredOpportunities} /> : null}
+          {tab === "ai_predictions" ? (
+            <div className="grid gap-3">
+              <AIPicksPanel picks={aiPicksQuery.data ?? []} />
+              <AiInsightPanel items={filteredOpportunities} />
+            </div>
+          ) : null}
+          {tab === "backtesting" ? <BacktestPanel onRun={runBacktest} /> : null}
           {tab === "bankroll" ? (
             <BankrollPanel data={bankrollQuery.data} onAddEntry={addBankrollEntry} />
+          ) : null}
+          {tab === "market_movers" ? <MarketMoversPanel items={filteredOpportunities} /> : null}
+          {tab === "injury_impact" ? <InjuryImpactPanel items={filteredOpportunities} /> : null}
+          {tab === "betting_journal" ? <BettingJournalPanel /> : null}
+          {tab === "analytics" ? (
+            <div className="grid gap-3">
+              <OpportunityHeatmap items={filteredOpportunities} />
+              <OddsComparisonTable rows={oddsCompareQuery.data ?? []} />
+            </div>
+          ) : null}
+          {tab === "settings" ? (
+            <section className="rounded-2xl border border-white/10 bg-panel p-4 shadow-panel">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Settings</h3>
+              <p className="mt-2 text-sm text-white/70">
+                Open advanced controls for API keys, bankroll, risk model, and refresh cadence.
+              </p>
+              <Link
+                href="/settings"
+                className="mt-3 inline-flex rounded-lg border border-accentBlue/40 bg-accentBlue/15 px-3 py-2 text-sm font-semibold text-accentBlue hover:bg-accentBlue/25"
+              >
+                Open Settings Page
+              </Link>
+            </section>
           ) : null}
           {tab === "chat" ? (
             <ChatPanel history={chatHistoryQuery.data ?? []} onAsk={sendChat} />
@@ -659,6 +742,115 @@ function BestAvailableLeansPanel({
       <p className="mt-3 text-xs text-warning">
         Responsible betting: never chase losses; limit exposure to 1-3% bankroll per position.
       </p>
+    </section>
+  );
+}
+
+function ArbitragePanel({
+  items
+}: {
+  items: Array<{
+    id: string;
+    matchup: string;
+    league: string;
+    pick: string;
+    odds: number | null;
+    edgePct: number;
+    evPct: number;
+    opportunityScore: number;
+  }>;
+}) {
+  const candidates = [...items]
+    .filter((item) => item.evPct > 0 && item.edgePct > 1 && item.odds !== null)
+    .sort((a, b) => b.evPct - a.evPct)
+    .slice(0, 10);
+
+  return (
+    <section className="rounded-2xl border border-white/10 bg-panel p-4 shadow-panel">
+      <h3 className="text-sm font-semibold uppercase tracking-wide text-white/85">Arbitrage & Middle Finder</h3>
+      <p className="mt-1 text-xs text-white/60">
+        Candidate opportunities where price dislocation may allow cross-book value.
+      </p>
+      <div className="mt-3 grid gap-2">
+        {candidates.length ? (
+          candidates.map((item) => (
+            <article key={`${item.id}-arb`} className="rounded-lg border border-white/10 bg-bg p-3">
+              <p className="text-sm font-semibold text-white">{item.pick}</p>
+              <p className="text-xs text-white/60">{item.league} - {item.matchup}</p>
+              <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                <span className="rounded bg-accent/15 px-2 py-1 text-accent">EV {item.evPct.toFixed(2)}%</span>
+                <span className="rounded bg-white/10 px-2 py-1 text-white/80">Edge {item.edgePct.toFixed(2)}%</span>
+                <span className="rounded bg-white/10 px-2 py-1 text-white/80">Score {item.opportunityScore.toFixed(1)}</span>
+              </div>
+            </article>
+          ))
+        ) : (
+          <p className="rounded-lg border border-dashed border-white/25 bg-bg p-3 text-xs text-white/60">
+            No arbitrage-grade dislocations right now.
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function InjuryImpactPanel({
+  items
+}: {
+  items: Array<{
+    id: string;
+    matchup: string;
+    confidence: number;
+    risk: "Low" | "Medium" | "High";
+    reason: string;
+  }>;
+}) {
+  const rows = [...items]
+    .sort((a, b) => a.confidence - b.confidence)
+    .slice(0, 8);
+
+  return (
+    <section className="rounded-2xl border border-white/10 bg-panel p-4 shadow-panel">
+      <h3 className="text-sm font-semibold uppercase tracking-wide text-white/85">Injury Impact Monitor</h3>
+      <p className="mt-1 text-xs text-white/60">
+        Lower-confidence spots often imply uncertainty from rotations and injury variance.
+      </p>
+      <div className="mt-3 grid gap-2">
+        {rows.length ? (
+          rows.map((row) => (
+            <article key={`${row.id}-inj`} className="rounded-lg border border-white/10 bg-bg p-3">
+              <p className="text-sm font-semibold text-white">{row.matchup}</p>
+              <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                <span className="rounded bg-white/10 px-2 py-1 text-white/80">Confidence {row.confidence.toFixed(1)}/10</span>
+                <span className={`rounded px-2 py-1 ${row.risk === "Low" ? "bg-accent/15 text-accent" : row.risk === "Medium" ? "bg-warning/15 text-warning" : "bg-danger/15 text-danger"}`}>
+                  Risk {row.risk}
+                </span>
+              </div>
+              <p className="mt-2 text-xs text-white/70">{row.reason}</p>
+            </article>
+          ))
+        ) : (
+          <p className="rounded-lg border border-dashed border-white/25 bg-bg p-3 text-xs text-white/60">
+            Injury impact feed is waiting for data.
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function BettingJournalPanel() {
+  return (
+    <section className="rounded-2xl border border-white/10 bg-panel p-4 shadow-panel">
+      <h3 className="text-sm font-semibold uppercase tracking-wide text-white/85">Betting Journal</h3>
+      <p className="mt-2 text-sm text-white/70">
+        Track why you took a play, unit size, and outcome so model learning can improve over time.
+      </p>
+      <ul className="mt-3 grid gap-2 text-xs text-white/70">
+        <li className="rounded-lg border border-white/10 bg-bg p-2">Log bet thesis before placing the wager.</li>
+        <li className="rounded-lg border border-white/10 bg-bg p-2">Review CLV, EV, and confidence after settlement.</li>
+        <li className="rounded-lg border border-white/10 bg-bg p-2">Reduce unit size after a 3-loss streak per risk rules.</li>
+      </ul>
     </section>
   );
 }
