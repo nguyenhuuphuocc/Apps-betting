@@ -124,6 +124,11 @@ function momentumFromMovement(movementRows = []) {
   };
 }
 
+function isoDate(offsetDays = 0) {
+  const d = new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000);
+  return d.toISOString().slice(0, 10);
+}
+
 function formatBacktestRow(row) {
   if (!row) return row;
   return {
@@ -167,10 +172,46 @@ export function createDashboardService({ env, store, cache, oddsApi, ballDontLie
         );
         oddsEvents = wrapped.data ?? [];
       } catch (error) {
-        errors.push({
+        const errPayload = {
           sportKey,
           message: error?.message || "sync error"
-        });
+        };
+
+        // Fallback: if odds provider fails, still ingest NBA schedule from BallDontLie
+        // so dashboard can display games even without market prices.
+        if (sportKey === "basketball_nba") {
+          try {
+            const fallbackGames = [
+              ...(await ballDontLie.getGamesByDate(isoDate(0), "nba")),
+              ...(await ballDontLie.getGamesByDate(isoDate(1), "nba"))
+            ];
+
+            const mapped = fallbackGames.map((game) => ({
+              id: `balldontlie-nba-${game.id}`,
+              sportKey: "basketball_nba",
+              league: "NBA",
+              commenceTime: game.date,
+              homeTeam: game.home_team?.full_name || game.home_team?.name || "Home",
+              awayTeam: game.visitor_team?.full_name || game.visitor_team?.name || "Away",
+              status:
+                safeNum(game.home_team_score, 0) > 0 || safeNum(game.visitor_team_score, 0) > 0
+                  ? "final"
+                  : statusFromStartTime(game.date),
+              homeScore: game.home_team_score ?? null,
+              awayScore: game.visitor_team_score ?? null
+            }));
+
+            if (mapped.length) {
+              await store.upsertEvents(mapped);
+              allEvents.push(...mapped);
+              errPayload.fallback = `Used BallDontLie NBA schedule fallback (${mapped.length} games).`;
+            }
+          } catch (fallbackError) {
+            errPayload.fallback = `Fallback failed: ${fallbackError?.message || "unknown error"}`;
+          }
+        }
+
+        errors.push(errPayload);
         continue;
       }
 
