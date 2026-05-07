@@ -6,9 +6,12 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "build": "node -e \"console.log('API build step not required for plain Node runtime')\""
+    "build": "node -e \"console.log('API build step not required for plain Node runtime')\"",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push"
   },
   "dependencies": {
+    "@prisma/client": "^5.22.0",
     "axios": "^1.7.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -20,5 +23,8 @@
     "pg": "^8.13.1",
     "socket.io": "^4.8.1",
     "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "prisma": "^5.22.0"
   }
 }

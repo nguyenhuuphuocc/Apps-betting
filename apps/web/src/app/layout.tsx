@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -9,7 +10,15 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="dark">
-      <body>{children}</body>
+      <body>
+        {children}
+        <Link
+          href="/#chat"
+          className="fixed bottom-4 right-4 z-50 rounded-full border border-accent/40 bg-accent/20 px-4 py-2 text-sm font-semibold text-accent shadow-glow hover:bg-accent/30"
+        >
+          Ask BetIQ AI
+        </Link>
+      </body>
     </html>
   );
 }

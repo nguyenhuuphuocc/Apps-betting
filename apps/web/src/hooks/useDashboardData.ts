@@ -4,11 +4,22 @@ import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { io } from "socket.io-client";
 import { API_BASE, fetcher, postJson } from "@/lib/api";
-import type { BacktestResult, EvBet, LiveGame } from "@/types";
+import type {
+  BacktestResult,
+  BankrollSummary,
+  ChatAnswer,
+  ChatMessage,
+  DashboardStatus,
+  EvBet,
+  LiveGame,
+  OddsComparisonRow,
+  SharpSignal
+} from "@/types";
 
 export function useDashboardData() {
   const [sportKey, setSportKey] = useState<string>("basketball_nba");
   const [syncMessage, setSyncMessage] = useState<string>("Connected");
+  const [sessionId, setSessionId] = useState<string>("default-session");
 
   const liveQuery = useSWR<LiveGame[]>(`/api/v1/live-games?sportKey=${sportKey}`, fetcher, {
     refreshInterval: 30000
@@ -16,54 +27,130 @@ export function useDashboardData() {
   const evQuery = useSWR<EvBet[]>("/api/v1/ev-bets?minEdge=2&minConfidence=6", fetcher, {
     refreshInterval: 45000
   });
-  const statusQuery = useSWR<{ warnings?: string[]; supportedSports?: string[] }>("/api/v1/status", fetcher, {
+  const statusQuery = useSWR<DashboardStatus>("/api/v1/status", fetcher, {
     refreshInterval: 60000
   });
+  const sharpQuery = useSWR<SharpSignal[]>(`/api/v1/sharp-money?sportKey=${sportKey}`, fetcher, {
+    refreshInterval: 45000
+  });
+  const oddsCompareQuery = useSWR<OddsComparisonRow[]>(
+    liveQuery.data?.[0]?.eventId ? `/api/v1/odds-comparison?eventId=${liveQuery.data[0].eventId}` : null,
+    fetcher,
+    { refreshInterval: 60000 }
+  );
+  const bankrollQuery = useSWR<BankrollSummary>("/api/v1/bankroll?userId=default", fetcher, {
+    refreshInterval: 45000
+  });
+  const chatHistoryQuery = useSWR<ChatMessage[]>(
+    `/api/v1/chat/history?sessionId=${encodeURIComponent(sessionId)}&limit=80`,
+    fetcher,
+    {
+      refreshInterval: 0
+    }
+  );
 
   useEffect(() => {
     const socket = io(API_BASE, { transports: ["websocket"] });
-    socket.on("sync:tick", (payload) => setSyncMessage(`Live sync ${payload.eventsSynced} events @ ${new Date(payload.at).toLocaleTimeString()}`));
-    socket.on("sync:error", (payload) => setSyncMessage(`Live data unavailable - showing latest update (${payload.message})`));
-    socket.on("sync:complete", (payload) => setSyncMessage(`Manual sync complete - ${payload.eventsSynced} events`));
+    socket.on("sync:tick", (payload) =>
+      setSyncMessage(
+        `Live sync ${payload.eventsSynced} events @ ${new Date(payload.at).toLocaleTimeString()}`
+      )
+    );
+    socket.on("sync:error", (payload) =>
+      setSyncMessage(`Live API sync failed. Showing cached data. (${payload.message})`)
+    );
+    socket.on("sync:complete", (payload) =>
+      setSyncMessage(`Manual sync complete - ${payload.eventsSynced} events`)
+    );
     return () => socket.disconnect();
   }, []);
 
   const kpis = useMemo(() => {
     const bets = evQuery.data ?? [];
     const live = liveQuery.data ?? [];
-    const topEdge = bets.length ? Math.max(...bets.map((bet) => Number(bet.edge_pct || 0))) : 0;
-    const avgConfidence = bets.length ? bets.reduce((sum, row) => sum + Number(row.confidence || 0), 0) / bets.length : 0;
+    const topEdge = bets.length
+      ? Math.max(...bets.map((bet) => Number(bet.edge_pct || 0)))
+      : 0;
+    const avgConfidence = bets.length
+      ? bets.reduce((sum, row) => sum + Number(row.confidence || 0), 0) / bets.length
+      : 0;
+    const sharpSignals =
+      (sharpQuery.data ?? []).filter((row) => row.sharpSignal || row.steamMove).length ?? 0;
     return {
       liveGames: live.length,
       evBets: bets.length,
       avgConfidence,
-      topEdge
+      topEdge,
+      sharpSignals
     };
-  }, [evQuery.data, liveQuery.data]);
+  }, [evQuery.data, liveQuery.data, sharpQuery.data]);
 
   async function triggerSync() {
     const response = await postJson<{ eventsSynced: number; predictions: number }>("/api/v1/sync", {});
-    liveQuery.mutate();
-    evQuery.mutate();
-    setSyncMessage(`Manual sync complete - ${response.eventsSynced} events / ${response.predictions} predictions`);
+    await Promise.all([
+      liveQuery.mutate(),
+      evQuery.mutate(),
+      sharpQuery.mutate(),
+      oddsCompareQuery.mutate()
+    ]);
+    setSyncMessage(
+      `Manual sync complete - ${response.eventsSynced} events / ${response.predictions} predictions`
+    );
   }
 
-  async function runBacktest(params: { from: string; to: string; minEdge: number }) {
+  async function runBacktest(params: {
+    from: string;
+    to: string;
+    minEdge: number;
+    minConfidence?: number;
+    startingBankroll?: number;
+  }) {
     return postJson<BacktestResult>("/api/v1/backtest", {
       strategyName: "+EV only",
       ...params
     });
   }
 
+  async function sendChat(message: string) {
+    const payload = await postJson<ChatAnswer>("/api/v1/chat", {
+      sessionId,
+      userId: "default",
+      message
+    });
+    setSessionId(payload.sessionId);
+    await chatHistoryQuery.mutate();
+    return payload;
+  }
+
+  async function addBankrollEntry(input: {
+    amount: number;
+    entryType: string;
+    note?: string;
+  }) {
+    await postJson("/api/v1/bankroll", {
+      userId: "default",
+      ...input
+    });
+    await bankrollQuery.mutate();
+  }
+
   return {
     sportKey,
     setSportKey,
     syncMessage,
+    sessionId,
+    setSessionId,
     liveQuery,
     evQuery,
     statusQuery,
+    sharpQuery,
+    oddsCompareQuery,
+    bankrollQuery,
+    chatHistoryQuery,
     kpis,
     triggerSync,
-    runBacktest
+    runBacktest,
+    sendChat,
+    addBankrollEntry
   };
 }

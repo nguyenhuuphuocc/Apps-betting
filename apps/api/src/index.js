@@ -10,6 +10,7 @@ import { createCache } from "./lib/cache.js";
 import { createStore } from "./lib/db.js";
 import { createRoutes } from "./routes.js";
 import { createDashboardService } from "./services/dashboardService.js";
+import { createChatService } from "./services/chatService.js";
 import { createBallDontLieClient } from "./services/providers/ballDontLie.js";
 import { createOddsApiClient } from "./services/providers/oddsApi.js";
 
@@ -51,7 +52,13 @@ const service = createDashboardService({
   ballDontLie
 });
 
-app.use(createRoutes({ env, service, io }));
+const chatService = createChatService({
+  env,
+  service,
+  store
+});
+
+app.use(createRoutes({ env, service, chatService, io }));
 
 io.on("connection", (socket) => {
   socket.emit("server:ready", { at: new Date().toISOString() });

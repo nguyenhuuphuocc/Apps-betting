@@ -1,176 +1,217 @@
-# Professional Sports Betting Analytics Platform
+# BetIQ Professional Sports Betting Analytics Platform
 
-Production-oriented multi-sport betting intelligence platform with:
+Production-oriented multi-sport analytics SaaS scaffold with:
 
-- Next.js + Tailwind frontend (premium dark UI)
-- Express + WebSocket backend
-- PostgreSQL persistence for events, odds history, predictions, and backtests
-- Redis caching with in-memory fallback
-- Odds API + BallDontLie integration
-- +EV detection, line movement tracking, AI probability model, and backtesting
+- `Next.js + TypeScript + Tailwind` frontend
+- `Express + Socket.IO` backend
+- `PostgreSQL` storage with automatic in-memory fallback
+- `Redis` caching with in-memory fallback
+- Odds + sports data provider integration
+- +EV engine, line movement, sharp signal detection
+- Backtesting module with drawdown and bankroll curve
+- BetIQ AI chatbot endpoint and web UI
 
-Predictions are not guaranteed. Bet responsibly. No bet if no edge exists.
+This tool is for analysis and education only.
+Predictions are not guaranteed. Bet responsibly.
+
+---
 
 ## 1) Project Structure
 
 ```text
-you-are-an-elite-sports-betting/
-  apps/
-    api/
-      src/
-        config/env.js
-        lib/
-          cache.js
-          db.js
-          retry.js
-        services/
-          providers/
-            oddsApi.js
-            ballDontLie.js
-          quant/
-            evEngine.js
-            predictionModel.js
-          dashboardService.js
-        routes.js
-        index.js
-      .env.example
-      package.json
-    web/
-      src/
-        app/
-          globals.css
-          layout.tsx
-          page.tsx
-        components/dashboard/
-          KpiCard.tsx
-          LiveGamesTable.tsx
-          EvTable.tsx
-          BacktestPanel.tsx
-        hooks/useDashboardData.ts
-        lib/api.ts
-        types/index.ts
-      .env.local.example
-      package.json
-      tailwind.config.ts
-      next.config.mjs
-  package.json
-  render.yaml
+apps/
+  api/
+    prisma/schema.prisma
+    src/
+      config/env.js
+      lib/
+        cache.js
+        db.js
+        retry.js
+      services/
+        chatService.js
+        dashboardService.js
+        providers/
+          ballDontLie.js
+          oddsApi.js
+        quant/
+          evEngine.js
+          predictionModel.js
+      routes.js
+      index.js
+  web/
+    src/
+      app/
+        page.tsx
+        landing/page.tsx
+        globals.css
+      components/dashboard/
+        BacktestPanel.tsx
+        BankrollPanel.tsx
+        ChatPanel.tsx
+        EvTable.tsx
+        KpiCard.tsx
+        LiveGamesTable.tsx
+        OddsComparisonTable.tsx
+        SharpMoneyTable.tsx
+      hooks/useDashboardData.ts
+      lib/api.ts
+      types/index.ts
 ```
 
-## 2) Backend API Routes
+---
 
-Base URL: `http://localhost:4000`
+## 2) API Routes
+
+### Core (versioned)
 
 - `GET /health`
 - `GET /api/v1/status`
 - `POST /api/v1/sync`
-- `GET /api/v1/live-games?sportKey=basketball_nba`
+- `GET /api/v1/live-games?sportKey=...`
+- `GET /api/v1/predictions?minEdge=2&minConfidence=6`
 - `GET /api/v1/ev-bets?minEdge=2&minConfidence=6`
 - `GET /api/v1/line-movement/:eventId`
+- `GET /api/v1/sharp-money?sportKey=...`
+- `GET /api/v1/odds-comparison?eventId=...`
 - `GET /api/v1/team/:teamId/analytics`
 - `GET /api/v1/player/:playerId/analytics`
+- `GET /api/v1/game/:eventId/analysis`
 - `POST /api/v1/backtest`
+- `GET /api/v1/bankroll?userId=default`
+- `POST /api/v1/bankroll`
+- `POST /api/v1/chat`
+- `GET /api/v1/chat/history?sessionId=...`
+- `POST /api/v1/bet-slip/analyze`
+- `GET /api/v1/dashboard-summary`
+- `GET /api/v1/alerts`
+- `POST /api/v1/alerts`
+- `GET /api/v1/user/settings`
+- `POST /api/v1/user/settings`
+- `GET /api/v1/admin/analytics`
 
-WebSocket events:
+### Alias routes (requested contract)
 
-- `server:ready`
-- `sync:tick`
-- `sync:complete`
-- `sync:error`
+- `/api/games`
+- `/api/odds`
+- `/api/predictions`
+- `/api/player-props`
+- `/api/sharp-money`
+- `/api/ev-scanner`
+- `/api/backtest`
+- `/api/bankroll`
+- `/api/chat`
+- `/api/chat/history`
+- `/api/alerts`
+- `/api/user/settings`
+- `/api/admin/analytics`
 
-## 3) Core Quant Logic
+---
 
-- **Implied probability** from American odds
-- **Expected value**:
-  - `EV = (win_probability * payout) - (lose_probability * stake)`
-- **+EV detector** with confidence/risk labels
-- **Kelly fraction** for bankroll sizing (capped)
-- **Prediction model**:
-  - Logistic-style scorer with market prior + context features
-  - Bounded probabilities to avoid unrealistic certainty
+## 3) Quant / Risk Guardrails
 
-## 4) Local Setup
+- Probability cap: 5% to 95% (no impossible 100%)
+- EV finite checks (no Infinity/NaN output)
+- +EV filtering and confidence thresholds
+- Kelly-based unit suggestion with hard caps
+- Backtest risk controls:
+  - min edge
+  - min confidence
+  - daily exposure cap
+  - losing-streak size reduction
 
-### Prerequisites
+---
 
-- Node 20+
-- Yarn 1.x+
-- PostgreSQL
-- Redis (optional, but recommended)
+## 4) Environment Variables
 
-### Install
+Use backend-only secrets. Never expose keys in frontend.
+
+### `apps/api/.env`
+
+```bash
+NODE_ENV=development
+API_PORT=4000
+FRONTEND_ORIGIN=http://localhost:3000
+
+ODDS_API_KEY=...
+ODDS_API_BASE_URL=https://api.the-odds-api.com/v4
+BALLDONTLIE_API_KEY=...
+OPENAI_API_KEY=...
+OPENAI_MODEL=gpt-4.1-mini
+
+DATABASE_URL=postgresql://...
+REDIS_URL=redis://...
+
+CACHE_TTL_SECONDS=120
+REQUEST_TIMEOUT_MS=12000
+RETRY_ATTEMPTS=3
+SUPPORTED_SPORT_KEYS=basketball_nba,basketball_wnba,baseball_mlb,icehockey_nhl,americanfootball_nfl,basketball_ncaab,basketball_euroleague,soccer_epl,soccer_fifa_world_cup,tennis_atp_italian_open,tennis_wta_italian_open,golf_pga_tour,boxing_boxing
+```
+
+### `apps/web/.env.local`
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
+```
+
+> `DATABASE_URL` and `REDIS_URL` are strongly recommended for production. If invalid or unavailable, the app falls back to in-memory mode.
+
+---
+
+## 5) Local Run
+
+1. Install dependencies at repo root:
 
 ```bash
 yarn
 ```
 
-### Environment
-
-1. Copy root env (optional if you already have one):
-
-```bash
-cp .env.example .env
-```
-
-2. Backend env:
+2. Copy env files:
 
 ```bash
 cp apps/api/.env.example apps/api/.env
-```
-
-3. Frontend env:
-
-```bash
 cp apps/web/.env.local.example apps/web/.env.local
 ```
 
-Edit values:
-
-- `apps/api/.env`
-  - `ODDS_API_KEY`
-  - `BALLDONTLIE_API_KEY`
-  - `DATABASE_URL`
-  - `REDIS_URL`
-- `apps/web/.env.local`
-  - `NEXT_PUBLIC_API_BASE_URL=http://localhost:4000`
-
-### Run
+3. Start both apps:
 
 ```bash
 yarn dev
 ```
 
-Frontend:
-- [http://localhost:3000](http://localhost:3000)
+- Frontend: [http://localhost:3000](http://localhost:3000)
+- API: [http://localhost:4000/health](http://localhost:4000/health)
 
-Backend:
-- [http://localhost:4000/health](http://localhost:4000/health)
+---
 
-## 5) Deployment on Render
+## 6) Render + Vercel Deployment
 
-Use `render.yaml` or create two services manually:
+### Backend (Render)
 
-1. **API service**
-   - Root directory: `apps/api`
-   - Build: `yarn`
-   - Start: `yarn start`
-   - Env vars:
-     - `ODDS_API_KEY`
-     - `BALLDONTLIE_API_KEY`
-     - `DATABASE_URL`
-     - `REDIS_URL`
-     - `FRONTEND_ORIGIN` (your web URL)
+- Service root: `apps/api`
+- Build: `yarn`
+- Start: `yarn start`
+- Required env:
+  - `ODDS_API_KEY`
+  - `BALLDONTLIE_API_KEY`
+  - `FRONTEND_ORIGIN`
+- Recommended env:
+  - `DATABASE_URL`
+  - `REDIS_URL`
+  - `OPENAI_API_KEY`
 
-2. **Web service**
-   - Root directory: `apps/web`
-   - Build: `yarn && yarn build`
-   - Start: `yarn start`
-   - Env vars:
-     - `NEXT_PUBLIC_API_BASE_URL` = your API URL
+### Frontend (Vercel or Render)
 
-## 6) Notes
+- Service root: `apps/web`
+- Build: `yarn && yarn build`
+- Start: `yarn start`
+- Env:
+  - `NEXT_PUBLIC_API_BASE_URL=https://<your-api-domain>`
 
-- API keys are backend-only and never exposed to frontend.
-- Retry logic + cache fallback is built in.
-- If live data is down, UI should continue with graceful messaging.
-- Existing legacy single-page dashboard files remain in repo for backward compatibility (`index.html`, `app.js`, `live-client.js`, `server.mjs`).
+---
+
+## 7) Notes
+
+- Legacy dashboard files (`index.html`, `app.js`, `server.mjs`) are still present for backward compatibility.
+- New platform runs from `apps/web` + `apps/api`.
+- If you still see the old site in production, verify the deploy service points at `apps/web` and latest commit.

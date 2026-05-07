@@ -3,6 +3,7 @@ import { z } from "zod";
 
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  PORT: z.coerce.number().optional(),
   API_PORT: z.coerce.number().default(4000),
   FRONTEND_ORIGIN: z.string().default("http://localhost:3000"),
   DATABASE_URL: z.string().optional(),
@@ -10,6 +11,8 @@ const schema = z.object({
   ODDS_API_KEY: z.string().optional(),
   ODDS_API_BASE_URL: z.string().default("https://api.the-odds-api.com/v4"),
   BALLDONTLIE_API_KEY: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
+  OPENAI_MODEL: z.string().default("gpt-4.1-mini"),
   CACHE_TTL_SECONDS: z.coerce.number().default(120),
   REQUEST_TIMEOUT_MS: z.coerce.number().default(12000),
   RETRY_ATTEMPTS: z.coerce.number().default(3),
@@ -29,5 +32,6 @@ if (!parsed.success) {
 
 export const env = {
   ...parsed.data,
+  API_PORT: parsed.data.PORT ?? parsed.data.API_PORT,
   supportedSportKeys: parsed.data.SUPPORTED_SPORT_KEYS.split(",").map((key) => key.trim())
 };

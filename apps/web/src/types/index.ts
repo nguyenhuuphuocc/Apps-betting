@@ -5,12 +5,20 @@ export type LiveGame = {
   commenceTime: string;
   homeTeam: string;
   awayTeam: string;
-  status: string;
+  status: "scheduled" | "live" | "final" | string;
   bestOdds?: {
     sportsbook?: string;
     home_price?: number;
     away_price?: number;
+    homePrice?: number;
+    awayPrice?: number;
   } | null;
+  movement?: {
+    movementPct: number;
+    reverseLineMovement: boolean;
+    steamMove: boolean;
+    sharpSignal: boolean;
+  };
 };
 
 export type EvBet = {
@@ -25,8 +33,9 @@ export type EvBet = {
   confidence: number;
   risk_level: "Low" | "Medium" | "High";
   suggested_units: number;
-  league: string;
-  sport_key: string;
+  league?: string;
+  sport_key?: string;
+  reason?: string;
 };
 
 export type BacktestResult = {
@@ -41,6 +50,87 @@ export type BacktestResult = {
   units: number;
   payload: {
     curve: Array<{ t: string; bankroll: number; outcome: string; edge: number }>;
+    betLogs?: Array<{
+      t: string;
+      pick: string;
+      stake: number;
+      pnl: number;
+      confidence: number;
+      evPct: number;
+      outcome: string;
+    }>;
     minEdge: number;
+    minConfidence?: number;
+    startingBankroll?: number;
+    endingBankroll?: number;
+    maxDrawdownPct?: number;
+    longestWinStreak?: number;
+    longestLosingStreak?: number;
+    brierScore?: number | null;
   };
+};
+
+export type SharpSignal = {
+  eventId: string;
+  matchup: string;
+  league: string;
+  sportKey: string;
+  movementPct: number;
+  reverseLineMovement: boolean;
+  steamMove: boolean;
+  sharpSignal: boolean;
+};
+
+export type OddsComparisonRow = {
+  sportsbook: string;
+  moneylineHome: number | null;
+  moneylineAway: number | null;
+  spread: number | null;
+  total: number | null;
+  bestHome: boolean;
+  bestAway: boolean;
+};
+
+export type BankrollSummary = {
+  entries: Array<{
+    t: string;
+    balance: number;
+    amount: number;
+    type: string;
+  }>;
+  summary: {
+    currentBankroll: number;
+    maxDrawdownPct: number;
+    winRatePct: number;
+    roiPct: number;
+  };
+};
+
+export type ChatAnswer = {
+  sessionId: string;
+  question: string;
+  answer: string;
+  meta: {
+    quickVerdict: string;
+    confidenceScore: number;
+    modelProbability: number;
+    impliedProbability: number;
+    edge: number;
+    evPct: number;
+    risk: string;
+    recommendedUnits: number;
+  };
+};
+
+export type ChatMessage = {
+  id: number | string;
+  role: "user" | "assistant" | string;
+  content: string;
+  createdAt: string;
+  metadata?: Record<string, unknown>;
+};
+
+export type DashboardStatus = {
+  warnings?: string[];
+  supportedSports?: string[];
 };

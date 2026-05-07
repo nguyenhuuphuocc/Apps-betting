@@ -1,0 +1,222 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String           @id @default(cuid())
+  email          String           @unique
+  displayName    String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  subscription   Subscription?
+  bankrollEntries BankrollEntry[]
+  bets           Bet[]
+  betSlips       BetSlip[]
+  chatSessions   ChatSession[]
+  alerts         Alert[]
+  backtests      Backtest[]
+  feedback       UserFeedback[]
+}
+
+model Subscription {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  tier      String
+  status    String
+  renewsAt  DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Team {
+  id        String   @id
+  sportKey  String
+  league    String
+  name      String
+  abbrev    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Player {
+  id        String   @id
+  teamId    String?
+  sportKey  String
+  league    String
+  name      String
+  position  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Game {
+  id             String      @id
+  sportKey       String
+  league         String
+  commenceTime   DateTime?
+  status         String
+  homeTeam       String
+  awayTeam       String
+  homeScore      Float?
+  awayScore      Float?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  odds           Odds[]
+  predictions    Prediction[]
+  injuries       Injury[]
+  modelVersions  ModelVersion[]
+}
+
+model Sportsbook {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  title     String
+  createdAt DateTime @default(now())
+}
+
+model Odds {
+  id            String   @id @default(cuid())
+  gameId        String
+  sportsbookKey String
+  marketType    String
+  homePrice     Float?
+  awayPrice     Float?
+  drawPrice     Float?
+  spread        Float?
+  total         Float?
+  overPrice     Float?
+  underPrice    Float?
+  capturedAt    DateTime @default(now())
+  game          Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+}
+
+model Prediction {
+  id                 String   @id @default(cuid())
+  gameId             String
+  marketType         String
+  pick               String
+  modelProbability   Float
+  impliedProbability Float?
+  edgePct            Float?
+  evPct              Float?
+  confidence         Float
+  riskLevel          String
+  suggestedUnits     Float
+  reason             String
+  createdAt          DateTime @default(now())
+  game               Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+}
+
+model Injury {
+  id           String   @id @default(cuid())
+  gameId        String?
+  playerName    String
+  teamName      String
+  status        String
+  impactWeight  Float?
+  reportedAt    DateTime @default(now())
+  game          Game?    @relation(fields: [gameId], references: [id], onDelete: SetNull)
+}
+
+model Bet {
+  id             String   @id @default(cuid())
+  userId         String
+  gameId         String?
+  marketType     String
+  pick           String
+  oddsAmerican   Int?
+  stake          Float
+  units          Float
+  result         String
+  pnl            Float?
+  createdAt      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model BetSlip {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String?
+  legs        Json
+  totalOdds   Float?
+  riskScore   Float?
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model BankrollEntry {
+  id         String   @id @default(cuid())
+  userId     String
+  amount     Float
+  entryType  String
+  note       String?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ChatSession {
+  id         String        @id @default(cuid())
+  userId     String
+  title      String
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  messages   ChatMessage[]
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ChatMessage {
+  id         String      @id @default(cuid())
+  sessionId  String
+  role       String
+  content    String
+  metadata   Json?
+  createdAt  DateTime    @default(now())
+  session    ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model Alert {
+  id         String   @id @default(cuid())
+  userId     String
+  type       String
+  channel    String
+  title      String
+  body       String
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Backtest {
+  id          String   @id @default(cuid())
+  userId      String
+  strategy    String
+  params      Json
+  result      Json
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ModelVersion {
+  id          String   @id @default(cuid())
+  gameId       String?
+  name        String
+  weights     Json
+  calibration Json?
+  createdAt   DateTime @default(now())
+  game        Game?    @relation(fields: [gameId], references: [id], onDelete: SetNull)
+}
+
+model UserFeedback {
+  id          String   @id @default(cuid())
+  userId      String
+  category    String
+  message     String
+  rating      Int?
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

@@ -4,7 +4,10 @@ const memoryStore = {
   events: [],
   predictions: [],
   oddsHistory: [],
-  backtests: []
+  backtests: [],
+  chatSessions: [],
+  chatMessages: [],
+  bankrollEntries: []
 };
 
 function withPool(databaseUrl) {
@@ -68,8 +71,33 @@ function withPool(databaseUrl) {
         payload JSONB NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS chat_sessions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        title TEXT NOT NULL DEFAULT 'BetIQ session',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id BIGSERIAL PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        metadata JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS bankroll_entries (
+        id BIGSERIAL PRIMARY KEY,
+        user_id TEXT,
+        amount NUMERIC NOT NULL,
+        entry_type TEXT NOT NULL,
+        note TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
       CREATE INDEX IF NOT EXISTS idx_odds_event_time ON odds_snapshots (event_id, captured_at DESC);
       CREATE INDEX IF NOT EXISTS idx_predictions_event ON predictions (event_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_chat_messages_session_time ON chat_messages (session_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_bankroll_entries_user_time ON bankroll_entries (user_id, created_at DESC);
     `);
   }
 
@@ -224,6 +252,65 @@ function withPool(databaseUrl) {
         ]
       );
       return result.rows[0];
+    },
+    async upsertChatSession(session) {
+      await pool.query(
+        `
+        INSERT INTO chat_sessions (id, user_id, title, created_at, updated_at)
+        VALUES ($1,$2,$3,NOW(),NOW())
+        ON CONFLICT (id) DO UPDATE SET
+          user_id = EXCLUDED.user_id,
+          title = EXCLUDED.title,
+          updated_at = NOW()
+      `,
+        [session.id, session.userId ?? null, session.title ?? "BetIQ session"]
+      );
+    },
+    async addChatMessage(message) {
+      await pool.query(
+        `
+        INSERT INTO chat_messages (session_id, role, content, metadata, created_at)
+        VALUES ($1,$2,$3,$4,NOW())
+      `,
+        [message.sessionId, message.role, message.content, message.metadata ?? {}]
+      );
+    },
+    async getChatHistory(sessionId, limit = 40) {
+      const result = await pool.query(
+        `
+        SELECT *
+        FROM chat_messages
+        WHERE session_id = $1
+        ORDER BY created_at DESC
+        LIMIT $2
+      `,
+        [sessionId, limit]
+      );
+      return result.rows.reverse();
+    },
+    async addBankrollEntry(entry) {
+      const result = await pool.query(
+        `
+        INSERT INTO bankroll_entries (user_id, amount, entry_type, note, created_at)
+        VALUES ($1,$2,$3,$4,NOW())
+        RETURNING *
+      `,
+        [entry.userId ?? null, entry.amount, entry.entryType, entry.note ?? null]
+      );
+      return result.rows[0];
+    },
+    async getBankrollEntries(userId, limit = 200) {
+      const result = await pool.query(
+        `
+        SELECT *
+        FROM bankroll_entries
+        WHERE ($1::text IS NULL OR user_id = $1)
+        ORDER BY created_at DESC
+        LIMIT $2
+      `,
+        [userId ?? null, limit]
+      );
+      return result.rows.reverse();
     }
   };
 }
@@ -270,10 +357,100 @@ function withMemory() {
       const saved = { id: memoryStore.backtests.length + 1, ...run, createdAt: new Date().toISOString() };
       memoryStore.backtests.push(saved);
       return saved;
+    },
+    async upsertChatSession(session) {
+      const idx = memoryStore.chatSessions.findIndex((row) => row.id === session.id);
+      const payload = {
+        id: session.id,
+        userId: session.userId ?? null,
+        title: session.title ?? "BetIQ session",
+        updatedAt: new Date().toISOString()
+      };
+      if (idx >= 0) {
+        memoryStore.chatSessions[idx] = {
+          ...memoryStore.chatSessions[idx],
+          ...payload
+        };
+      } else {
+        memoryStore.chatSessions.push({
+          ...payload,
+          createdAt: new Date().toISOString()
+        });
+      }
+    },
+    async addChatMessage(message) {
+      memoryStore.chatMessages.push({
+        id: memoryStore.chatMessages.length + 1,
+        session_id: message.sessionId,
+        role: message.role,
+        content: message.content,
+        metadata: message.metadata ?? {},
+        created_at: new Date().toISOString()
+      });
+    },
+    async getChatHistory(sessionId, limit = 40) {
+      return memoryStore.chatMessages
+        .filter((row) => row.session_id === sessionId)
+        .slice(-limit);
+    },
+    async addBankrollEntry(entry) {
+      const payload = {
+        id: memoryStore.bankrollEntries.length + 1,
+        user_id: entry.userId ?? null,
+        amount: entry.amount,
+        entry_type: entry.entryType,
+        note: entry.note ?? null,
+        created_at: new Date().toISOString()
+      };
+      memoryStore.bankrollEntries.push(payload);
+      return payload;
+    },
+    async getBankrollEntries(userId, limit = 200) {
+      const rows = userId
+        ? memoryStore.bankrollEntries.filter((row) => row.user_id === userId)
+        : memoryStore.bankrollEntries;
+      return rows.slice(-limit);
     }
   };
 }
 
 export function createStore(databaseUrl) {
-  return databaseUrl ? withPool(databaseUrl) : withMemory();
+  if (!databaseUrl) return withMemory();
+
+  const poolStore = withPool(databaseUrl);
+  const memoryStoreImpl = withMemory();
+  let activeStore = poolStore;
+
+  const call = (method) => async (...args) => activeStore[method](...args);
+
+  return {
+    get type() {
+      return activeStore.type;
+    },
+    async init() {
+      try {
+        await poolStore.init();
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[db] Failed to initialize PostgreSQL (${error.message}). Falling back to in-memory store.`
+        );
+        activeStore = memoryStoreImpl;
+        await activeStore.init();
+      }
+    },
+    upsertEvents: call("upsertEvents"),
+    saveOdds: call("saveOdds"),
+    savePredictions: call("savePredictions"),
+    latestEvents: call("latestEvents"),
+    latestOddsByEvent: call("latestOddsByEvent"),
+    oddsMovement: call("oddsMovement"),
+    predictionRows: call("predictionRows"),
+    saveBacktest: call("saveBacktest"),
+    upsertChatSession: call("upsertChatSession"),
+    addChatMessage: call("addChatMessage"),
+    getChatHistory: call("getChatHistory"),
+    addBankrollEntry: call("addBankrollEntry"),
+    getBankrollEntries: call("getBankrollEntries")
+  };
 }

@@ -8,8 +8,8 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "20"
-      - key: API_PORT
-        value: "4000"
+      - key: FRONTEND_ORIGIN
+        value: "https://your-web-domain.onrender.com"
 
   - type: web
     name: betintel-web
@@ -20,3 +20,5 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "20"
+      - key: NEXT_PUBLIC_API_BASE_URL
+        value: "https://your-api-domain.onrender.com"
