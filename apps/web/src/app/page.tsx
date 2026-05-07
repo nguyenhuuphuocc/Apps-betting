@@ -9,6 +9,7 @@ import {
   BarChart3,
   Bell,
   Bot,
+  Boxes,
   BookOpen,
   ChartNoAxesCombined,
   ChevronLeft,
@@ -54,6 +55,7 @@ import { OpportunityHeatmap } from "@/components/dashboard/OpportunityHeatmap";
 import { TopOpportunitiesFeed } from "@/components/dashboard/TopOpportunitiesFeed";
 import { AiInsightPanel } from "@/components/dashboard/AiInsightPanel";
 import { MarketMoversPanel } from "@/components/dashboard/MarketMoversPanel";
+import { MarketCoveragePanel } from "@/components/dashboard/MarketCoveragePanel";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { fetcher } from "@/lib/api";
 
@@ -80,6 +82,7 @@ const navItems = [
   { key: "positive_ev", label: "Positive EV Bets", icon: TrendingUp },
   { key: "player_props", label: "Player Props", icon: ListChecks },
   { key: "sharp_money", label: "Sharp Money", icon: Siren },
+  { key: "market_coverage", label: "Markets", icon: Boxes },
   { key: "arbitrage", label: "Arbitrage Finder", icon: Shuffle },
   { key: "ai_predictions", label: "AI Predictions", icon: Bot },
   { key: "backtesting", label: "Backtesting Lab", icon: ChartNoAxesCombined },
@@ -101,7 +104,14 @@ const navSections: Array<{ title: string; keys: TabKey[] }> = [
   },
   {
     title: "Markets",
-    keys: ["sharp_money", "market_movers", "arbitrage", "player_props", "injury_impact"]
+    keys: [
+      "sharp_money",
+      "market_coverage",
+      "market_movers",
+      "arbitrage",
+      "player_props",
+      "injury_impact"
+    ]
   },
   {
     title: "Performance",
@@ -131,6 +141,9 @@ export default function HomePage() {
     const hash = window.location.hash.replace("#", "");
     if (navItems.some((item) => item.key === hash)) {
       setTab(hash as TabKey);
+    }
+    if (window.innerWidth < 1024) {
+      setCollapsed(true);
     }
   }, []);
 
@@ -578,6 +591,7 @@ export default function HomePage() {
               <MarketMoversPanel items={displayOpportunities} />
             </div>
           ) : null}
+          {tab === "market_coverage" ? <MarketCoveragePanel /> : null}
           {tab === "arbitrage" ? <ArbitragePanel items={displayOpportunities} /> : null}
           {tab === "ai_predictions" ? (
             <div className="grid gap-3">
