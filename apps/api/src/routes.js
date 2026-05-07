@@ -68,6 +68,24 @@ export function createRoutes({ env, service, chatService, io }) {
     });
   });
 
+  router.get("/api/v1/sync", async (req, res) => {
+    const sportKey = req.query.sportKey ? String(req.query.sportKey) : null;
+    const syncResult = await service.syncOddsSnapshot({
+      sportKeys: sportKey ? [sportKey] : null
+    });
+    const predictions = await service.generatePredictions();
+    io.emit("sync:complete", {
+      at: new Date().toISOString(),
+      eventsSynced: syncResult.eventsSynced,
+      predictions: predictions.length
+    });
+    res.json({
+      ok: true,
+      ...syncResult,
+      predictions: predictions.length
+    });
+  });
+
   router.get("/api/v1/live-games", async (req, res) => {
     const sportKey = req.query.sportKey ? String(req.query.sportKey) : null;
     const data = await service.liveGames(sportKey);
