@@ -34,7 +34,7 @@ export function useDashboardData() {
       refreshInterval: 30000
     }
   );
-  const evQuery = useSWR<EvBet[]>("/api/v1/ev-bets?minEdge=2&minConfidence=6", fetcher, {
+  const evQuery = useSWR<EvBet[]>("/api/v1/ev-bets?minEdge=0.5&minConfidence=5.4", fetcher, {
     refreshInterval: 45000
   });
   const statusQuery = useSWR<DashboardStatus>("/api/v1/status", fetcher, {

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ComponentType } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -93,13 +94,32 @@ const navItems = [
 
 type TabKey = (typeof navItems)[number]["key"];
 
+const navSections: Array<{ title: string; keys: TabKey[] }> = [
+  {
+    title: "Core",
+    keys: ["dashboard", "live_games", "ai_opportunities", "positive_ev", "ai_predictions"]
+  },
+  {
+    title: "Markets",
+    keys: ["sharp_money", "market_movers", "arbitrage", "player_props", "injury_impact"]
+  },
+  {
+    title: "Performance",
+    keys: ["backtesting", "bankroll", "betting_journal", "analytics"]
+  },
+  {
+    title: "System",
+    keys: ["chat", "settings"]
+  }
+];
+
 export default function HomePage() {
   const [tab, setTab] = useState<TabKey>("dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState<string>(new Date().toISOString());
   const [leanMode, setLeanMode] = useState<"strict" | "leans">("leans");
   const [riskFilter, setRiskFilter] = useState<"all" | "Low" | "Medium" | "High">("all");
-  const [minOpportunityScore, setMinOpportunityScore] = useState<number>(55);
+  const [minOpportunityScore, setMinOpportunityScore] = useState<number>(42);
   const [liveOnly, setLiveOnly] = useState<boolean>(false);
 
   const selectTab = (next: TabKey) => {
@@ -163,32 +183,32 @@ export default function HomePage() {
 
   const topPlays = useMemo(
     () =>
-      [...(evQuery.data ?? [])]
-        .filter((row) => Number(row.ev_pct) > 0 && Number(row.confidence) >= 6)
-        .sort((a, b) => Number(b.edge_pct) - Number(a.edge_pct))
+      [...(opportunitiesQuery.data ?? [])]
+        .filter((row) => Number(row.evPct) > 0 && Number(row.confidence) >= 5.4)
+        .sort((a, b) => Number(b.opportunityScore) - Number(a.opportunityScore))
         .slice(0, 3),
-    [evQuery.data]
+    [opportunitiesQuery.data]
   );
 
   const watchlist = useMemo(
     () =>
-      [...(evQuery.data ?? [])]
+      [...(opportunitiesQuery.data ?? [])]
         .filter(
           (row) =>
-            Number(row.ev_pct) > -1 &&
-            Number(row.ev_pct) <= 0 &&
-            Number(row.confidence) >= 5.5
+            Number(row.evPct) > -0.5 &&
+            Number(row.evPct) <= 1 &&
+            Number(row.confidence) >= 5.2
         )
         .slice(0, 3),
-    [evQuery.data]
+    [opportunitiesQuery.data]
   );
 
   const avoid = useMemo(
     () =>
-      [...(evQuery.data ?? [])]
-        .filter((row) => Number(row.ev_pct) < 0 || Number(row.confidence) < 5.5)
+      [...(opportunitiesQuery.data ?? [])]
+        .filter((row) => Number(row.evPct) < -1 || Number(row.confidence) < 5.1)
         .slice(0, 3),
-    [evQuery.data]
+    [opportunitiesQuery.data]
   );
 
   const tickerItems = useMemo(() => {
@@ -208,23 +228,31 @@ export default function HomePage() {
       const liveOk = liveOnly ? item.timeToStartMins <= 180 : true;
       const strictOk =
         leanMode === "strict"
-          ? item.evPct > 0 && item.edgePct > 1.5 && item.confidence >= 6.2
+          ? item.evPct >= 0 && item.edgePct >= 0.4 && item.confidence >= 5.4
           : true;
       return riskOk && scoreOk && liveOk && strictOk;
     });
   }, [leanMode, liveOnly, minOpportunityScore, opportunitiesQuery.data, riskFilter]);
 
+  const displayOpportunities = useMemo(() => {
+    if (filteredOpportunities.length) return filteredOpportunities;
+    return [...(opportunitiesQuery.data ?? [])]
+      .sort((a, b) => b.opportunityScore - a.opportunityScore || b.confidence - a.confidence)
+      .slice(0, 40);
+  }, [filteredOpportunities, opportunitiesQuery.data]);
+
   const bestAvailableLeans = useMemo(() => {
-    const rows = filteredOpportunities;
+    const rows = displayOpportunities;
     return [...rows]
       .sort((a, b) => b.opportunityScore - a.opportunityScore || b.confidence - a.confidence)
       .slice(0, 6);
-  }, [filteredOpportunities]);
+  }, [displayOpportunities]);
 
   const hasNoDataForSport =
     !liveQuery.isLoading &&
     !liveQuery.data?.length &&
     !(evQuery.data ?? []).some((row) => row.sport_key === sportKey) &&
+    !(opportunitiesQuery.data ?? []).some((row) => row.sportKey === sportKey) &&
     sportKey !== "all";
 
   return (
@@ -252,16 +280,29 @@ export default function HomePage() {
             Multi-Sport
           </p>
 
-          <nav className="grid gap-2">
-            {navItems.map((item) => (
-              <NavBtn
-                key={item.key}
-                icon={item.icon}
-                label={item.label}
-                collapsed={collapsed}
-                active={tab === item.key}
-                onClick={() => selectTab(item.key)}
-              />
+          <nav className="grid gap-3">
+            {navSections.map((section) => (
+              <div key={section.title} className="grid gap-2">
+                {!collapsed ? (
+                  <p className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/45">
+                    {section.title}
+                  </p>
+                ) : null}
+                {section.keys.map((key) => {
+                  const item = navItems.find((entry) => entry.key === key);
+                  if (!item) return null;
+                  return (
+                    <NavBtn
+                      key={item.key}
+                      icon={item.icon}
+                      label={item.label}
+                      collapsed={collapsed}
+                      active={tab === item.key}
+                      onClick={() => selectTab(item.key)}
+                    />
+                  );
+                })}
+              </div>
             ))}
           </nav>
 
@@ -374,118 +415,144 @@ export default function HomePage() {
           </div>
 
           {tab === "dashboard" ? (
-            <div className="grid gap-3">
-              <div className="grid gap-3 xl:grid-cols-[1.5fr_1fr]">
-                <LiveGamesTable games={liveQuery.data ?? []} />
+            <div className="grid gap-5">
+              <SectionShell
+                title="Market Snapshot"
+                subtitle="Quick read of the slate, line pressure, and immediate opportunity context."
+              >
+                <div className="grid gap-3 xl:grid-cols-[1.5fr_1fr]">
+                  <LiveGamesTable games={liveQuery.data ?? []} />
 
+                  <section className="rounded-2xl border border-white/10 bg-panel p-4 shadow-panel">
+                    <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-white/80">
+                      Line Movement
+                    </h3>
+                    <div className="h-[275px] rounded-xl border border-white/10 bg-bg p-3">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={lineData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                          <XAxis dataKey="time" stroke="#94a3b8" />
+                          <YAxis stroke="#94a3b8" />
+                          <Tooltip />
+                          <Line type="monotone" dataKey="homePrice" stroke="#39ff88" dot={false} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <p className="mt-2 text-xs text-white/55">
+                      Watch for reverse moves near tip-off. If edge disappears, pass the bet.
+                    </p>
+                  </section>
+                </div>
+
+                <div className="grid gap-3 lg:grid-cols-3">
+                  <MiniBoard title="Top Plays Today" tone="green" items={topPlays.map((row) => `${row.pick} | EV ${Number(row.evPct).toFixed(2)}% | ${Number(row.confidence).toFixed(1)}/10`)} empty="NO BET: no high-quality +EV setup currently." />
+                  <MiniBoard title="Watchlist Bets" tone="yellow" items={watchlist.map((row) => `${row.pick} | EV ${Number(row.evPct).toFixed(2)}%`)} empty="No watchlist candidates right now." />
+                  <MiniBoard title="Avoid / Trap Bets" tone="red" items={avoid.map((row) => `${row.pick} | EV ${Number(row.evPct).toFixed(2)}%`)} empty="No obvious trap signal for current filter." />
+                </div>
+              </SectionShell>
+
+              <SectionShell
+                title="Opportunity Desk"
+                subtitle="Ranking and filtering workspace for best available market edges."
+              >
                 <section className="rounded-2xl border border-white/10 bg-panel p-4 shadow-panel">
-                  <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-white/80">
-                    Line Movement
-                  </h3>
-                  <div className="h-[275px] rounded-xl border border-white/10 bg-bg p-3">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={lineData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                        <XAxis dataKey="time" stroke="#94a3b8" />
-                        <YAxis stroke="#94a3b8" />
-                        <Tooltip />
-                        <Line type="monotone" dataKey="homePrice" stroke="#39ff88" dot={false} />
-                      </LineChart>
-                    </ResponsiveContainer>
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-white/85">
+                      Opportunity Controls
+                    </h3>
+                    <p className="text-xs text-white/60">
+                      Tune feed like a trading terminal. Strict mode only shows high-quality +EV spots.
+                    </p>
                   </div>
-                  <p className="mt-2 text-xs text-white/55">
-                    Watch for reverse moves near tip-off. If edge disappears, pass the bet.
-                  </p>
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <label className="grid gap-1 text-xs text-white/60">
+                      <span>Feed Mode</span>
+                      <select
+                        value={leanMode}
+                        onChange={(event) => setLeanMode(event.target.value as "strict" | "leans")}
+                        className="field"
+                      >
+                        <option value="leans">Best Available Leans</option>
+                        <option value="strict">Strict +EV Only</option>
+                      </select>
+                    </label>
+                    <label className="grid gap-1 text-xs text-white/60">
+                      <span>Risk Filter</span>
+                      <select
+                        value={riskFilter}
+                        onChange={(event) =>
+                          setRiskFilter(event.target.value as "all" | "Low" | "Medium" | "High")
+                        }
+                        className="field"
+                      >
+                        <option value="all">All Risk Levels</option>
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                      </select>
+                    </label>
+                    <label className="grid gap-1 text-xs text-white/60">
+                      <span>Min Opportunity Score ({minOpportunityScore})</span>
+                      <input
+                        type="range"
+                        min={40}
+                        max={90}
+                        step={1}
+                        value={minOpportunityScore}
+                        onChange={(event) => setMinOpportunityScore(Number(event.target.value))}
+                      />
+                    </label>
+                    <label className="flex items-end gap-2 text-xs text-white/70">
+                      <input
+                        type="checkbox"
+                        checked={liveOnly}
+                        onChange={(event) => setLiveOnly(event.target.checked)}
+                      />
+                      <span>Live/Near-Live only (next 3h)</span>
+                    </label>
+                  </div>
                 </section>
-              </div>
 
-              <div className="grid gap-3 lg:grid-cols-3">
-                <MiniBoard title="Top Plays Today" tone="green" items={topPlays.map((row) => `${row.pick} | EV ${Number(row.ev_pct).toFixed(2)}% | ${Number(row.confidence).toFixed(1)}/10`)} empty="NO BET: no high-quality +EV setup currently." />
-                <MiniBoard title="Watchlist Bets" tone="yellow" items={watchlist.map((row) => `${row.pick} | EV ${Number(row.ev_pct).toFixed(2)}%`)} empty="No watchlist candidates right now." />
-                <MiniBoard title="Avoid / Trap Bets" tone="red" items={avoid.map((row) => `${row.pick} | EV ${Number(row.ev_pct).toFixed(2)}%`)} empty="No obvious trap signal for current filter." />
-              </div>
+                {filteredOpportunities.length === 0 && displayOpportunities.length > 0 ? (
+                  <section className="rounded-xl border border-warning/35 bg-warning/10 p-3 text-xs text-warning">
+                    Filters are currently strict for this slate. Showing best available ranked leans so you can still review candidates.
+                  </section>
+                ) : null}
 
-              <section className="rounded-2xl border border-white/10 bg-panel p-4 shadow-panel">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-white/85">
-                    Opportunity Controls
-                  </h3>
-                  <p className="text-xs text-white/60">
-                    Tune feed like a trading terminal. Strict mode only shows high-quality +EV spots.
-                  </p>
+                <TopOpportunitiesFeed items={displayOpportunities} />
+                <OpportunityHighlights items={displayOpportunities} />
+                <OpportunityHeatmap items={displayOpportunities} />
+                <BestAvailableLeansPanel items={bestAvailableLeans} />
+
+                {hasNoDataForSport ? (
+                  <section className="rounded-xl border border-warning/35 bg-warning/10 p-3 text-sm text-warning">
+                    No synced data for <strong>{sportLabels[sportKey] ?? sportKey}</strong>. Run{" "}
+                    <strong>Sync now</strong> for this sport or switch to a populated sport.
+                  </section>
+                ) : null}
+              </SectionShell>
+
+              <SectionShell
+                title="Model Intelligence"
+                subtitle="AI confidence, alerts, live edge context, and prop signals."
+              >
+                <div className="grid gap-3 xl:grid-cols-2">
+                  <AIPicksPanel picks={aiPicksQuery.data ?? []} />
+                  <NotificationsPanel items={notificationsQuery.data ?? []} />
                 </div>
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <label className="grid gap-1 text-xs text-white/60">
-                    <span>Feed Mode</span>
-                    <select
-                      value={leanMode}
-                      onChange={(event) => setLeanMode(event.target.value as "strict" | "leans")}
-                      className="field"
-                    >
-                      <option value="leans">Best Available Leans</option>
-                      <option value="strict">Strict +EV Only</option>
-                    </select>
-                  </label>
-                  <label className="grid gap-1 text-xs text-white/60">
-                    <span>Risk Filter</span>
-                    <select
-                      value={riskFilter}
-                      onChange={(event) =>
-                        setRiskFilter(event.target.value as "all" | "Low" | "Medium" | "High")
-                      }
-                      className="field"
-                    >
-                      <option value="all">All Risk Levels</option>
-                      <option value="Low">Low</option>
-                      <option value="Medium">Medium</option>
-                      <option value="High">High</option>
-                    </select>
-                  </label>
-                  <label className="grid gap-1 text-xs text-white/60">
-                    <span>Min Opportunity Score ({minOpportunityScore})</span>
-                    <input
-                      type="range"
-                      min={40}
-                      max={90}
-                      step={1}
-                      value={minOpportunityScore}
-                      onChange={(event) => setMinOpportunityScore(Number(event.target.value))}
-                    />
-                  </label>
-                  <label className="flex items-end gap-2 text-xs text-white/70">
-                    <input
-                      type="checkbox"
-                      checked={liveOnly}
-                      onChange={(event) => setLiveOnly(event.target.checked)}
-                    />
-                    <span>Live/Near-Live only (next 3h)</span>
-                  </label>
+
+                <div className="grid gap-3 xl:grid-cols-2">
+                  <LiveInsightsPanel rows={liveInsightsQuery.data ?? []} />
+                  <PlayerPropsPanel rows={playerPropsQuery.data ?? []} />
                 </div>
-              </section>
+              </SectionShell>
 
-              <TopOpportunitiesFeed items={filteredOpportunities} />
-              <OpportunityHighlights items={filteredOpportunities} />
-              <OpportunityHeatmap items={filteredOpportunities} />
-              <BestAvailableLeansPanel items={bestAvailableLeans} />
-
-              {hasNoDataForSport ? (
-                <section className="rounded-xl border border-warning/35 bg-warning/10 p-3 text-sm text-warning">
-                  No synced data for <strong>{sportLabels[sportKey] ?? sportKey}</strong>. Run{" "}
-                  <strong>Sync now</strong> for this sport or switch to a populated sport.
-                </section>
-              ) : null}
-
-              <div className="grid gap-3 xl:grid-cols-2">
-                <AIPicksPanel picks={aiPicksQuery.data ?? []} />
-                <NotificationsPanel items={notificationsQuery.data ?? []} />
-              </div>
-
-              <div className="grid gap-3 xl:grid-cols-2">
-                <LiveInsightsPanel rows={liveInsightsQuery.data ?? []} />
-                <PlayerPropsPanel rows={playerPropsQuery.data ?? []} />
-              </div>
-
-              <OddsComparisonTable rows={oddsCompareQuery.data ?? []} />
+              <SectionShell
+                title="Execution & Pricing"
+                subtitle="Cross-book odds comparison to improve entry quality."
+              >
+                <OddsComparisonTable rows={oddsCompareQuery.data ?? []} />
+              </SectionShell>
             </div>
           ) : null}
 
@@ -497,9 +564,9 @@ export default function HomePage() {
           ) : null}
           {tab === "ai_opportunities" ? (
             <div className="grid gap-3">
-              <TopOpportunitiesFeed items={filteredOpportunities} />
-              <OpportunityHighlights items={filteredOpportunities} />
-              <OpportunityHeatmap items={filteredOpportunities} />
+              <TopOpportunitiesFeed items={displayOpportunities} />
+              <OpportunityHighlights items={displayOpportunities} />
+              <OpportunityHeatmap items={displayOpportunities} />
               <BestAvailableLeansPanel items={bestAvailableLeans} />
             </div>
           ) : null}
@@ -508,26 +575,26 @@ export default function HomePage() {
           {tab === "sharp_money" ? (
             <div className="grid gap-3">
               <SharpMoneyTable rows={sharpQuery.data ?? []} />
-              <MarketMoversPanel items={filteredOpportunities} />
+              <MarketMoversPanel items={displayOpportunities} />
             </div>
           ) : null}
-          {tab === "arbitrage" ? <ArbitragePanel items={filteredOpportunities} /> : null}
+          {tab === "arbitrage" ? <ArbitragePanel items={displayOpportunities} /> : null}
           {tab === "ai_predictions" ? (
             <div className="grid gap-3">
               <AIPicksPanel picks={aiPicksQuery.data ?? []} />
-              <AiInsightPanel items={filteredOpportunities} />
+              <AiInsightPanel items={displayOpportunities} />
             </div>
           ) : null}
           {tab === "backtesting" ? <BacktestPanel onRun={runBacktest} /> : null}
           {tab === "bankroll" ? (
             <BankrollPanel data={bankrollQuery.data} onAddEntry={addBankrollEntry} />
           ) : null}
-          {tab === "market_movers" ? <MarketMoversPanel items={filteredOpportunities} /> : null}
-          {tab === "injury_impact" ? <InjuryImpactPanel items={filteredOpportunities} /> : null}
+          {tab === "market_movers" ? <MarketMoversPanel items={displayOpportunities} /> : null}
+          {tab === "injury_impact" ? <InjuryImpactPanel items={displayOpportunities} /> : null}
           {tab === "betting_journal" ? <BettingJournalPanel /> : null}
           {tab === "analytics" ? (
             <div className="grid gap-3">
-              <OpportunityHeatmap items={filteredOpportunities} />
+              <OpportunityHeatmap items={displayOpportunities} />
               <OddsComparisonTable rows={oddsCompareQuery.data ?? []} />
             </div>
           ) : null}
@@ -569,6 +636,29 @@ export default function HomePage() {
         </section>
       </div>
     </main>
+  );
+}
+
+function SectionShell({
+  title,
+  subtitle,
+  children
+}: {
+  title: string;
+  subtitle: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-end justify-between gap-2 border-b border-white/10 pb-2">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-white/45">Workspace</p>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-white/90">{title}</h2>
+        </div>
+        <p className="text-xs text-white/60">{subtitle}</p>
+      </div>
+      {children}
+    </section>
   );
 }
 
