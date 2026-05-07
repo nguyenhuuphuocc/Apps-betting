@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { fetcher, postJson } from "@/lib/api";
 
 type SettingsPayload = {
@@ -152,7 +153,7 @@ export default function SettingsPage() {
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="rounded-xl border border-white/10 bg-bg p-4">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-white/75">{title}</h2>
@@ -161,7 +162,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="grid gap-1 text-xs text-white/60">
       <span>{label}</span>

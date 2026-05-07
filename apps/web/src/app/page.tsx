@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { ComponentType } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -324,7 +325,7 @@ function NavBtn({
   active,
   onClick
 }: {
-  icon: React.ComponentType<{ className?: string }>;
+  icon: ComponentType<{ className?: string }>;
   label: string;
   collapsed: boolean;
   active: boolean;
@@ -389,7 +390,7 @@ function Badge({
   text,
   tone
 }: {
-  icon: React.ComponentType<{ className?: string }>;
+  icon: ComponentType<{ className?: string }>;
   text: string;
   tone: "blue" | "yellow";
 }) {

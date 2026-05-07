@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -189,7 +190,7 @@ export function BacktestPanel({ onRun }: Props) {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="grid gap-1 text-xs uppercase tracking-wide text-white/60">
       <span>{label}</span>
