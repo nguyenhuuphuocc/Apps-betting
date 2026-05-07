@@ -46,13 +46,17 @@ apps/
         landing/page.tsx
         globals.css
       components/dashboard/
+        AIPicksPanel.tsx
         BacktestPanel.tsx
         BankrollPanel.tsx
         ChatPanel.tsx
         EvTable.tsx
         KpiCard.tsx
         LiveGamesTable.tsx
+        LiveInsightsPanel.tsx
+        NotificationsPanel.tsx
         OddsComparisonTable.tsx
+        PlayerPropsPanel.tsx
         SharpMoneyTable.tsx
       hooks/useDashboardData.ts
       lib/api.ts
@@ -74,6 +78,10 @@ apps/
 - `GET /api/v1/line-movement/:eventId`
 - `GET /api/v1/sharp-money?sportKey=...`
 - `GET /api/v1/odds-comparison?eventId=...`
+- `GET /api/v1/ai-picks?sportKey=...`
+- `GET /api/v1/live-insights?sportKey=...`
+- `GET /api/v1/player-props?sportKey=...`
+- `GET /api/v1/notifications`
 - `GET /api/v1/team/:teamId/analytics`
 - `GET /api/v1/player/:playerId/analytics`
 - `GET /api/v1/game/:eventId/analysis`
@@ -96,6 +104,7 @@ apps/
 - `/api/odds`
 - `/api/predictions`
 - `/api/player-props`
+- `/api/notifications`
 - `/api/sharp-money`
 - `/api/ev-scanner`
 - `/api/backtest`

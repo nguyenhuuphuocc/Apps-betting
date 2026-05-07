@@ -134,3 +134,53 @@ export type DashboardStatus = {
   warnings?: string[];
   supportedSports?: string[];
 };
+
+export type AIPick = {
+  id: string;
+  eventId: string;
+  matchup: string;
+  league: string;
+  sportKey: string;
+  pick: string;
+  recommendation: "Strong Bet" | "Lean" | "Avoid" | "Sharp Play";
+  confidence: number;
+  edgePct: number;
+  evPct: number;
+  impliedProbability: number;
+  modelProbability: number;
+  risk: "Low" | "Medium" | "High";
+  explanation: string;
+};
+
+export type NotificationItem = {
+  id: string;
+  level: "info" | "warning" | "success";
+  title: string;
+  body: string;
+  createdAt: string;
+};
+
+export type PlayerPropInsight = {
+  id: string;
+  player: string;
+  team: string;
+  opponent: string;
+  market: string;
+  line: number;
+  projection: number;
+  confidence: number;
+  lean: "Over" | "Under";
+  hitRate: number;
+  reason: string;
+};
+
+export type LiveInsight = {
+  eventId: string;
+  matchup: string;
+  status: string;
+  liveWinProbabilityHome: number;
+  momentum: "Home" | "Away" | "Neutral";
+  paceFactor: number;
+  shootingDelta: number;
+  opportunity: string;
+};

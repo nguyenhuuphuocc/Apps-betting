@@ -30,27 +30,33 @@ import useSWR from "swr";
 import { BacktestPanel } from "@/components/dashboard/BacktestPanel";
 import { BankrollPanel } from "@/components/dashboard/BankrollPanel";
 import { ChatPanel } from "@/components/dashboard/ChatPanel";
+import { AIPicksPanel } from "@/components/dashboard/AIPicksPanel";
 import { EvTable } from "@/components/dashboard/EvTable";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { LiveGamesTable } from "@/components/dashboard/LiveGamesTable";
+import { LiveInsightsPanel } from "@/components/dashboard/LiveInsightsPanel";
+import { NotificationsPanel } from "@/components/dashboard/NotificationsPanel";
 import { OddsComparisonTable } from "@/components/dashboard/OddsComparisonTable";
+import { PlayerPropsPanel } from "@/components/dashboard/PlayerPropsPanel";
 import { SharpMoneyTable } from "@/components/dashboard/SharpMoneyTable";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { fetcher } from "@/lib/api";
 
-const sports = [
-  { key: "basketball_nba", label: "NBA" },
-  { key: "basketball_wnba", label: "WNBA" },
-  { key: "baseball_mlb", label: "MLB" },
-  { key: "icehockey_nhl", label: "NHL" },
-  { key: "americanfootball_nfl", label: "NFL" },
-  { key: "basketball_ncaab", label: "NCAABB" },
-  { key: "basketball_euroleague", label: "EuroLeague" },
-  { key: "soccer_epl", label: "Soccer" },
-  { key: "tennis_atp_italian_open", label: "Tennis" },
-  { key: "golf_pga_tour", label: "Golf" },
-  { key: "boxing_boxing", label: "Boxing" }
-];
+const sportLabels: Record<string, string> = {
+  basketball_nba: "NBA",
+  basketball_wnba: "WNBA",
+  baseball_mlb: "MLB",
+  icehockey_nhl: "NHL",
+  americanfootball_nfl: "NFL",
+  basketball_ncaab: "NCAABB",
+  basketball_euroleague: "EuroLeague",
+  soccer_epl: "Soccer EPL",
+  soccer_fifa_world_cup: "Soccer World Cup",
+  tennis_atp_italian_open: "Tennis ATP Rome",
+  tennis_wta_italian_open: "Tennis WTA Rome",
+  golf_pga_tour: "PGA Tour",
+  boxing_boxing: "Boxing"
+};
 
 const tabs = ["dashboard", "ev", "sharp", "backtest", "bankroll", "chat"] as const;
 type TabKey = (typeof tabs)[number];
@@ -58,6 +64,7 @@ type TabKey = (typeof tabs)[number];
 export default function HomePage() {
   const [tab, setTab] = useState<TabKey>("dashboard");
   const [collapsed, setCollapsed] = useState(false);
+  const [lastSyncAt, setLastSyncAt] = useState<string>(new Date().toISOString());
 
   const selectTab = (next: TabKey) => {
     setTab(next);
@@ -82,12 +89,26 @@ export default function HomePage() {
     oddsCompareQuery,
     bankrollQuery,
     chatHistoryQuery,
+    aiPicksQuery,
+    notificationsQuery,
+    playerPropsQuery,
+    liveInsightsQuery,
     kpis,
     triggerSync,
     runBacktest,
     sendChat,
     addBankrollEntry
   } = useDashboardData();
+
+  const availableSports = useMemo(() => {
+    const keys = statusQuery.data?.supportedSports?.length
+      ? statusQuery.data.supportedSports
+      : Object.keys(sportLabels);
+    return keys.map((key) => ({
+      key,
+      label: sportLabels[key] ?? key.replaceAll("_", " ").toUpperCase()
+    }));
+  }, [statusQuery.data?.supportedSports]);
 
   const selectedEvent = liveQuery.data?.[0]?.eventId;
   const lineQuery = useSWR(
@@ -133,6 +154,11 @@ export default function HomePage() {
     [evQuery.data]
   );
 
+  const hasNoDataForSport =
+    !liveQuery.isLoading &&
+    !liveQuery.data?.length &&
+    !(evQuery.data ?? []).some((row) => row.sport_key === sportKey);
+
   return (
     <main className="mx-auto min-h-screen w-full max-w-[1800px] p-3 lg:p-6">
       <div className="grid gap-4 lg:grid-cols-[auto_1fr]">
@@ -175,7 +201,7 @@ export default function HomePage() {
                 onChange={(event) => setSportKey(event.target.value)}
                 className="field mt-2 w-full"
               >
-                {sports.map((sport) => (
+                {availableSports.map((sport) => (
                   <option key={sport.key} value={sport.key}>
                     {sport.label}
                   </option>
@@ -202,13 +228,16 @@ export default function HomePage() {
 
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded-full border border-white/15 bg-bg px-3 py-1 text-xs text-white/70">
-                  {syncMessage}
+                  {syncMessage} | Updated {new Date(lastSyncAt).toLocaleTimeString()}
                 </span>
                 <span className="rounded-full border border-warning/30 bg-warning/10 px-3 py-1 text-xs text-warning">
                   Predictions are not guaranteed
                 </span>
                 <button
-                  onClick={triggerSync}
+                  onClick={async () => {
+                    await triggerSync();
+                    setLastSyncAt(new Date().toISOString());
+                  }}
                   type="button"
                   className="inline-flex items-center gap-2 rounded-lg border border-accent/40 bg-accent/15 px-3 py-2 text-sm font-semibold text-accent hover:bg-accent/25"
                 >
@@ -241,9 +270,10 @@ export default function HomePage() {
             </div>
           </header>
 
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             <KpiCard label="Live Games" value={`${kpis.liveGames}`} hint="Upcoming + live events" />
             <KpiCard label="+EV Bets" value={`${kpis.evBets}`} hint="Threshold qualified spots" />
+            <KpiCard label="Strong AI Picks" value={`${kpis.strongPicks}`} hint="High-conviction spots" />
             <KpiCard label="Sharp Signals" value={`${kpis.sharpSignals}`} hint="Steam/RLM detections" />
             <KpiCard label="Avg Confidence" value={`${kpis.avgConfidence.toFixed(2)}/10`} hint="Model conviction" />
             <KpiCard label="Top Edge" value={`${kpis.topEdge.toFixed(2)}%`} hint="Best model-vs-market gap" />
@@ -279,6 +309,23 @@ export default function HomePage() {
                 <MiniBoard title="Top Plays Today" tone="green" items={topPlays.map((row) => `${row.pick} | EV ${Number(row.ev_pct).toFixed(2)}% | ${Number(row.confidence).toFixed(1)}/10`)} empty="NO BET: no high-quality +EV setup currently." />
                 <MiniBoard title="Watchlist Bets" tone="yellow" items={watchlist.map((row) => `${row.pick} | EV ${Number(row.ev_pct).toFixed(2)}%`)} empty="No watchlist candidates right now." />
                 <MiniBoard title="Avoid / Trap Bets" tone="red" items={avoid.map((row) => `${row.pick} | EV ${Number(row.ev_pct).toFixed(2)}%`)} empty="No obvious trap signal for current filter." />
+              </div>
+
+              {hasNoDataForSport ? (
+                <section className="rounded-xl border border-warning/35 bg-warning/10 p-3 text-sm text-warning">
+                  No synced data for <strong>{sportLabels[sportKey] ?? sportKey}</strong>. Run{" "}
+                  <strong>Sync now</strong> for this sport or switch to a populated sport.
+                </section>
+              ) : null}
+
+              <div className="grid gap-3 xl:grid-cols-2">
+                <AIPicksPanel picks={aiPicksQuery.data ?? []} />
+                <NotificationsPanel items={notificationsQuery.data ?? []} />
+              </div>
+
+              <div className="grid gap-3 xl:grid-cols-2">
+                <LiveInsightsPanel rows={liveInsightsQuery.data ?? []} />
+                <PlayerPropsPanel rows={playerPropsQuery.data ?? []} />
               </div>
 
               <OddsComparisonTable rows={oddsCompareQuery.data ?? []} />

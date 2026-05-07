@@ -123,6 +123,25 @@ export function createRoutes({ env, service, chatService, io }) {
     res.json(data);
   });
 
+  router.get("/api/v1/ai-picks", async (req, res) => {
+    const sportKey = req.query.sportKey ? String(req.query.sportKey) : null;
+    res.json(await service.aiPicks({ sportKey }));
+  });
+
+  router.get("/api/v1/live-insights", async (req, res) => {
+    const sportKey = req.query.sportKey ? String(req.query.sportKey) : null;
+    res.json(await service.liveInsights({ sportKey }));
+  });
+
+  router.get("/api/v1/player-props", async (req, res) => {
+    const sportKey = req.query.sportKey ? String(req.query.sportKey) : null;
+    res.json(await service.playerPropInsights({ sportKey }));
+  });
+
+  router.get("/api/v1/notifications", async (_req, res) => {
+    res.json(await service.notificationsFeed());
+  });
+
   router.get("/api/v1/team/:teamId/analytics", async (req, res) => {
     const data = await service.teamAnalytics({ teamId: req.params.teamId });
     res.json(data);
@@ -307,8 +326,9 @@ export function createRoutes({ env, service, chatService, io }) {
     const minConfidence = Number(req.query.minConfidence ?? 6);
     res.json(await service.plusEvBets({ minEdge, minConfidence }));
   });
-  router.get("/api/player-props", async (_req, res) => {
-    res.json({ message: "Player props provider can be connected here.", items: [] });
+  router.get("/api/player-props", async (req, res) => {
+    const sportKey = req.query.sportKey ? String(req.query.sportKey) : null;
+    res.json(await service.playerPropInsights({ sportKey }));
   });
   router.get("/api/sharp-money", async (req, res) => {
     const sportKey = req.query.sportKey ? String(req.query.sportKey) : null;
@@ -391,6 +411,9 @@ export function createRoutes({ env, service, chatService, io }) {
   });
   router.get("/api/alerts", async (req, res) => {
     res.json(alertsMemory.slice(-200));
+  });
+  router.get("/api/notifications", async (_req, res) => {
+    res.json(await service.notificationsFeed());
   });
   router.post("/api/alerts", async (req, res) => {
     const payload = {

@@ -5,6 +5,7 @@ import useSWR from "swr";
 import { io } from "socket.io-client";
 import { API_BASE, fetcher, postJson } from "@/lib/api";
 import type {
+  AIPick,
   BacktestResult,
   BankrollSummary,
   ChatAnswer,
@@ -12,7 +13,10 @@ import type {
   DashboardStatus,
   EvBet,
   LiveGame,
+  LiveInsight,
+  NotificationItem,
   OddsComparisonRow,
+  PlayerPropInsight,
   SharpSignal
 } from "@/types";
 
@@ -48,6 +52,22 @@ export function useDashboardData() {
       refreshInterval: 0
     }
   );
+  const aiPicksQuery = useSWR<AIPick[]>(`/api/v1/ai-picks?sportKey=${sportKey}`, fetcher, {
+    refreshInterval: 30000
+  });
+  const notificationsQuery = useSWR<NotificationItem[]>("/api/v1/notifications", fetcher, {
+    refreshInterval: 30000
+  });
+  const playerPropsQuery = useSWR<PlayerPropInsight[]>(
+    `/api/v1/player-props?sportKey=${sportKey}`,
+    fetcher,
+    { refreshInterval: 60000 }
+  );
+  const liveInsightsQuery = useSWR<LiveInsight[]>(
+    `/api/v1/live-insights?sportKey=${sportKey}`,
+    fetcher,
+    { refreshInterval: 30000 }
+  );
 
   useEffect(() => {
     const socket = io(API_BASE, { transports: ["websocket"] });
@@ -76,14 +96,17 @@ export function useDashboardData() {
       : 0;
     const sharpSignals =
       (sharpQuery.data ?? []).filter((row) => row.sharpSignal || row.steamMove).length ?? 0;
+    const strongPicks =
+      (aiPicksQuery.data ?? []).filter((row) => row.recommendation === "Strong Bet").length ?? 0;
     return {
       liveGames: live.length,
       evBets: bets.length,
       avgConfidence,
       topEdge,
-      sharpSignals
+      sharpSignals,
+      strongPicks
     };
-  }, [evQuery.data, liveQuery.data, sharpQuery.data]);
+  }, [aiPicksQuery.data, evQuery.data, liveQuery.data, sharpQuery.data]);
 
   async function triggerSync() {
     const response = await postJson<{ eventsSynced: number; predictions: number; errors?: Array<{ sportKey: string; message: string }> }>(
@@ -94,7 +117,11 @@ export function useDashboardData() {
       liveQuery.mutate(),
       evQuery.mutate(),
       sharpQuery.mutate(),
-      oddsCompareQuery.mutate()
+      oddsCompareQuery.mutate(),
+      aiPicksQuery.mutate(),
+      playerPropsQuery.mutate(),
+      liveInsightsQuery.mutate(),
+      notificationsQuery.mutate()
     ]);
     if (response.errors?.length) {
       setSyncMessage(
@@ -156,6 +183,10 @@ export function useDashboardData() {
     oddsCompareQuery,
     bankrollQuery,
     chatHistoryQuery,
+    aiPicksQuery,
+    notificationsQuery,
+    playerPropsQuery,
+    liveInsightsQuery,
     kpis,
     triggerSync,
     runBacktest,
