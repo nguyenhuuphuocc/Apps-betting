@@ -94,11 +94,11 @@ io.on("connection", (socket) => {
 
 cron.schedule("*/2 * * * *", async () => {
   try {
-    const eventsSynced = await service.syncOddsSnapshot();
+    const syncResult = await service.syncOddsSnapshot();
     const predictions = await service.generatePredictions();
     io.emit("sync:tick", {
       at: new Date().toISOString(),
-      eventsSynced,
+      eventsSynced: syncResult.eventsSynced,
       predictions: predictions.length
     });
   } catch (error) {

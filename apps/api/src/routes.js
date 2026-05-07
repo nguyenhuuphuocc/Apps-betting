@@ -51,14 +51,21 @@ export function createRoutes({ env, service, chatService, io }) {
   });
 
   router.post("/api/v1/sync", async (_req, res) => {
-    const eventsSynced = await service.syncOddsSnapshot();
+    const sportKey = _req.query.sportKey ? String(_req.query.sportKey) : (_req.body?.sportKey ? String(_req.body.sportKey) : null);
+    const syncResult = await service.syncOddsSnapshot({
+      sportKeys: sportKey ? [sportKey] : null
+    });
     const predictions = await service.generatePredictions();
     io.emit("sync:complete", {
       at: new Date().toISOString(),
-      eventsSynced,
+      eventsSynced: syncResult.eventsSynced,
       predictions: predictions.length
     });
-    res.json({ ok: true, eventsSynced, predictions: predictions.length });
+    res.json({
+      ok: true,
+      ...syncResult,
+      predictions: predictions.length
+    });
   });
 
   router.get("/api/v1/live-games", async (req, res) => {
@@ -315,6 +322,24 @@ export function createRoutes({ env, service, chatService, io }) {
         maxDailyExposurePct
       })
     );
+  });
+
+  router.post("/api/sync", async (req, res) => {
+    const sportKey = req.query.sportKey ? String(req.query.sportKey) : (req.body?.sportKey ? String(req.body.sportKey) : null);
+    const syncResult = await service.syncOddsSnapshot({
+      sportKeys: sportKey ? [sportKey] : null
+    });
+    const predictions = await service.generatePredictions();
+    io.emit("sync:complete", {
+      at: new Date().toISOString(),
+      eventsSynced: syncResult.eventsSynced,
+      predictions: predictions.length
+    });
+    res.json({
+      ok: true,
+      ...syncResult,
+      predictions: predictions.length
+    });
   });
   router.get("/api/bankroll", async (req, res) => {
     const userId = req.query.userId ? String(req.query.userId) : null;

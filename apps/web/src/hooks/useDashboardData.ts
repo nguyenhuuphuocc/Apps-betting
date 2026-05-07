@@ -86,16 +86,25 @@ export function useDashboardData() {
   }, [evQuery.data, liveQuery.data, sharpQuery.data]);
 
   async function triggerSync() {
-    const response = await postJson<{ eventsSynced: number; predictions: number }>("/api/v1/sync", {});
+    const response = await postJson<{ eventsSynced: number; predictions: number; errors?: Array<{ sportKey: string; message: string }> }>(
+      `/api/v1/sync?sportKey=${encodeURIComponent(sportKey)}`,
+      { sportKey }
+    );
     await Promise.all([
       liveQuery.mutate(),
       evQuery.mutate(),
       sharpQuery.mutate(),
       oddsCompareQuery.mutate()
     ]);
-    setSyncMessage(
-      `Manual sync complete - ${response.eventsSynced} events / ${response.predictions} predictions`
-    );
+    if (response.errors?.length) {
+      setSyncMessage(
+        `Sync partial: ${response.eventsSynced} events / ${response.predictions} preds (${response.errors.length} sport errors)`
+      );
+    } else {
+      setSyncMessage(
+        `Manual sync complete - ${response.eventsSynced} events / ${response.predictions} predictions`
+      );
+    }
   }
 
   async function runBacktest(params: {

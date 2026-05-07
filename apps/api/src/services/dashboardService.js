@@ -143,22 +143,36 @@ function formatBacktestRow(row) {
 }
 
 export function createDashboardService({ env, store, cache, oddsApi, ballDontLie }) {
-  async function syncOddsSnapshot() {
+  async function syncOddsSnapshot({ sportKeys = null } = {}) {
     const allEvents = [];
-    for (const sportKey of env.supportedSportKeys) {
+    const keysToSync = Array.isArray(sportKeys) && sportKeys.length
+      ? sportKeys
+      : env.supportedSportKeys;
+    const errors = [];
+
+    for (const sportKey of keysToSync) {
       const markets =
         sportKey.startsWith("tennis_") ||
         sportKey.startsWith("boxing_") ||
         sportKey.startsWith("golf_")
           ? ["h2h"]
           : ["h2h", "spreads", "totals"];
-
-      const { data: oddsEvents } = await cacheWrap(
-        cache,
-        `odds:${sportKey}`,
-        env.CACHE_TTL_SECONDS,
-        () => oddsApi.getOdds(sportKey, markets)
-      );
+      let oddsEvents = [];
+      try {
+        const wrapped = await cacheWrap(
+          cache,
+          `odds:${sportKey}`,
+          env.CACHE_TTL_SECONDS,
+          () => oddsApi.getOdds(sportKey, markets)
+        );
+        oddsEvents = wrapped.data ?? [];
+      } catch (error) {
+        errors.push({
+          sportKey,
+          message: error?.message || "sync error"
+        });
+        continue;
+      }
 
       for (const event of oddsEvents) {
         allEvents.push({
@@ -175,7 +189,11 @@ export function createDashboardService({ env, store, cache, oddsApi, ballDontLie
       if (rows.length) await store.saveOdds(rows);
     }
     if (allEvents.length) await store.upsertEvents(allEvents);
-    return allEvents.length;
+    return {
+      eventsSynced: allEvents.length,
+      sportsSynced: keysToSync.length - errors.length,
+      errors
+    };
   }
 
   async function generatePredictions() {
