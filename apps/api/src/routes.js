@@ -15,6 +15,15 @@ function dayPlus(days) {
 export function createRoutes({ env, service, chatService, io }) {
   const router = Router();
 
+  router.get("/", (_req, res) => {
+    res.json({
+      ok: true,
+      service: "Betting Intelligence API",
+      message: "API is running. Use /health or /api/v1/status for diagnostics.",
+      now: new Date().toISOString()
+    });
+  });
+
   router.get("/health", async (_req, res) => {
     res.json({
       ok: true,

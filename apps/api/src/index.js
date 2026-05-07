@@ -60,6 +60,26 @@ const chatService = createChatService({
 
 app.use(createRoutes({ env, service, chatService, io }));
 
+app.use((error, _req, res, _next) => {
+  // eslint-disable-next-line no-console
+  console.error("[api] unhandled route error:", error);
+  res.status(500).json({
+    ok: false,
+    error: "Internal Server Error",
+    message: error?.message || "Unknown server error"
+  });
+});
+
+process.on("unhandledRejection", (reason) => {
+  // eslint-disable-next-line no-console
+  console.error("[api] unhandledRejection:", reason);
+});
+
+process.on("uncaughtException", (error) => {
+  // eslint-disable-next-line no-console
+  console.error("[api] uncaughtException:", error);
+});
+
 io.on("connection", (socket) => {
   socket.emit("server:ready", { at: new Date().toISOString() });
 });
