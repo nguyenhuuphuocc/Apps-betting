@@ -107,6 +107,63 @@ const advancedFeatures = [
   "Best sportsbook odds + +EV scanner + alerts"
 ];
 
+const nbaBetExamples = [
+  {
+    title: "Moneyline",
+    examples: ["Lakers ML -150", "Celtics ML +130"]
+  },
+  {
+    title: "Spread",
+    examples: ["Lakers -5.5 (-110)", "Celtics +5.5 (-110)"]
+  },
+  {
+    title: "Game Total (O/U)",
+    examples: ["Over 228.5 (-108)", "Under 228.5 (-112)"]
+  },
+  {
+    title: "Team Total",
+    examples: ["Lakers Team Total Over 115.5 (-105)", "Celtics Team Total Under 112.5 (-115)"]
+  },
+  {
+    title: "NBA Player Props",
+    examples: [
+      "LeBron James Over 27.5 Points (-115)",
+      "Jokic Over 12.5 Rebounds (+100)",
+      "Doncic Over 8.5 Assists (-120)",
+      "Tatum Over 4.5 3PM (+145)",
+      "Giannis Over 46.5 PRA (-110)"
+    ]
+  }
+];
+
+const soccerBetExamples = [
+  {
+    title: "Moneyline / 3-Way",
+    examples: ["Arsenal ML +120", "Draw +230", "Liverpool ML +210"]
+  },
+  {
+    title: "Total Goals (O/U)",
+    examples: ["Over 2.5 Goals (-105)", "Under 2.5 Goals (-115)"]
+  },
+  {
+    title: "BTTS",
+    examples: ["Both Teams To Score - Yes (-125)", "Both Teams To Score - No (+100)"]
+  },
+  {
+    title: "Double Chance / Draw No Bet",
+    examples: ["Arsenal or Draw (-160)", "Liverpool Draw No Bet (+105)"]
+  },
+  {
+    title: "Soccer Player Props",
+    examples: [
+      "Haaland Anytime Goalscorer (+110)",
+      "Saka Over 1.5 Shots on Target (+135)",
+      "De Bruyne Over 0.5 Assists (+170)",
+      "GK Over 3.5 Saves (-105)"
+    ]
+  }
+];
+
 export function MarketCoveragePanel() {
   return (
     <section className="rounded-2xl border border-white/10 bg-panel p-4 shadow-panel">
@@ -179,6 +236,48 @@ export function MarketCoveragePanel() {
           ))}
         </div>
       </article>
+
+      <div className="mt-3 grid gap-3 xl:grid-cols-2">
+        <article className="rounded-xl border border-accent/30 bg-accent/10 p-3">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-white/85">
+            NBA Odds & Player Bet Examples
+          </h4>
+          <div className="mt-2 grid gap-2">
+            {nbaBetExamples.map((group) => (
+              <details key={group.title} className="rounded-lg border border-white/15 bg-bg px-3 py-2">
+                <summary className="cursor-pointer text-xs font-semibold text-white/90">{group.title}</summary>
+                <ul className="mt-2 grid gap-1 text-[11px] text-white/75">
+                  {group.examples.map((example) => (
+                    <li key={example} className="rounded bg-white/5 px-2 py-1">
+                      {example}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ))}
+          </div>
+        </article>
+
+        <article className="rounded-xl border border-warning/30 bg-warning/10 p-3">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-white/85">
+            Soccer Odds & Prop Examples
+          </h4>
+          <div className="mt-2 grid gap-2">
+            {soccerBetExamples.map((group) => (
+              <details key={group.title} className="rounded-lg border border-white/15 bg-bg px-3 py-2">
+                <summary className="cursor-pointer text-xs font-semibold text-white/90">{group.title}</summary>
+                <ul className="mt-2 grid gap-1 text-[11px] text-white/75">
+                  {group.examples.map((example) => (
+                    <li key={example} className="rounded bg-white/5 px-2 py-1">
+                      {example}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ))}
+          </div>
+        </article>
+      </div>
     </section>
   );
 }
