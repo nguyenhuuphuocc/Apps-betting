@@ -1,18 +1,18 @@
 import Link from "next/link";
 import {
   ArrowRight,
+  BarChart3,
   Bot,
-  CandlestickChart,
   Radar,
   ShieldAlert,
   Siren,
-  Sparkles,
+  Target,
   TrendingUp
 } from "lucide-react";
 
 const featureCards = [
   {
-    icon: CandlestickChart,
+    icon: BarChart3,
     title: "Live Odds Terminal",
     text: "Monitor opening-to-current prices, reverse line movement, and best-book execution in one view."
   },
@@ -54,7 +54,7 @@ export default function LandingPage() {
           <nav className="glass-card flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <div className="flex items-center gap-3">
               <span className="grid h-9 w-9 place-items-center rounded-lg bg-accent/20 text-accent">
-                <Sparkles className="h-4 w-4" />
+                <Target className="h-4 w-4" />
               </span>
               <div>
                 <p className="text-[10px] uppercase tracking-[0.2em] text-white/45">Multi-Sport</p>
