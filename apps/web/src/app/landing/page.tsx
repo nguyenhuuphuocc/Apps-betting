@@ -93,7 +93,7 @@ export default function LandingPage() {
                   Open Dashboard <ArrowRight className="h-4 w-4" />
                 </Link>
                 <Link
-                  href="/#chat"
+                  href="/"
                   className="inline-flex items-center gap-2 rounded-lg border border-accentBlue/45 bg-accentBlue/15 px-4 py-2 text-sm font-semibold text-accentBlue hover:bg-accentBlue/25"
                 >
                   Ask BetIQ AI <Bot className="h-4 w-4" />
