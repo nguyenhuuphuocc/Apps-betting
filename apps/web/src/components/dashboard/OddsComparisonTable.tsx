@@ -19,7 +19,8 @@ export function OddsComparisonTable({ rows }: Props) {
         <h3 className="text-sm font-semibold tracking-wide text-white">Odds Comparison</h3>
         <span className="text-xs text-white/60">Line shopping across books</span>
       </div>
-      <table className="w-full text-sm">
+      <div className="overflow-x-auto">
+      <table className="w-full min-w-[700px] text-sm">
         <thead className="bg-panelSoft text-left text-xs uppercase tracking-widest text-white/60">
           <tr>
             <th className="px-4 py-3">Sportsbook</th>
@@ -68,6 +69,7 @@ export function OddsComparisonTable({ rows }: Props) {
           ) : null}
         </tbody>
       </table>
+      </div>
     </section>
   );
 }

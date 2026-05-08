@@ -17,7 +17,8 @@ export function EvTable({ bets }: Props) {
         <h3 className="text-sm font-semibold tracking-wide text-white">+EV Bet Detector</h3>
         <span className="text-xs text-white/60">Only positive edge spots are listed (no guaranteed outcomes)</span>
       </div>
-      <table className="w-full text-sm">
+      <div className="overflow-x-auto">
+      <table className="w-full min-w-[820px] text-sm">
         <thead className="bg-panelSoft text-left text-xs uppercase tracking-widest text-white/60">
           <tr>
             <th className="px-4 py-3">Pick</th>
@@ -71,6 +72,7 @@ export function EvTable({ bets }: Props) {
           ) : null}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

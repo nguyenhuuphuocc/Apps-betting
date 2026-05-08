@@ -269,10 +269,11 @@ export default function HomePage() {
     sportKey !== "all";
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-[1800px] p-3 lg:p-6">
-      <div className="grid gap-4 lg:grid-cols-[auto_1fr]">
+    <main className="mx-auto min-h-screen w-full max-w-[1880px] p-2 lg:p-5">
+      <div className="terminal-shell p-3 lg:p-5">
+        <div className="grid gap-4 lg:grid-cols-[auto_1fr]">
         <aside
-          className={`rounded-2xl border border-white/10 bg-panel p-3 shadow-panel transition-all duration-300 ${
+          className={`glass-card p-3 shadow-panel transition-all duration-300 ${
             collapsed ? "w-[78px]" : "w-[220px]"
           }`}
         >
@@ -289,7 +290,7 @@ export default function HomePage() {
             </button>
           </div>
 
-          <p className={`mb-3 text-xs uppercase tracking-widest text-white/55 ${collapsed ? "hidden" : "block"}`}>
+          <p className={`mb-3 section-label ${collapsed ? "hidden" : "block"}`}>
             Multi-Sport
           </p>
 
@@ -297,7 +298,7 @@ export default function HomePage() {
             {navSections.map((section) => (
               <div key={section.title} className="grid gap-2">
                 {!collapsed ? (
-                  <p className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/45">
+                  <p className="px-1 section-label">
                     {section.title}
                   </p>
                 ) : null}
@@ -338,13 +339,13 @@ export default function HomePage() {
         </aside>
 
         <section className="space-y-4">
-          <header className="rounded-2xl border border-white/10 bg-panel p-4 shadow-panel">
+          <header className="glass-card p-4 lg:p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-white/55">
+                <p className="panel-title">
                   AI-Powered Sports Betting Intelligence
                 </p>
-                <h1 className="mt-2 text-2xl font-bold text-white lg:text-4xl">
+                <h1 className="mt-2 text-2xl font-semibold text-white lg:text-4xl">
                   Professional Betting Analytics Terminal
                 </h1>
                 <p className="mt-2 text-xs text-white/50">
@@ -630,7 +631,7 @@ export default function HomePage() {
             <ChatPanel history={chatHistoryQuery.data ?? []} onAsk={sendChat} />
           ) : null}
 
-          <section className="rounded-2xl border border-white/10 bg-panel p-4 shadow-panel">
+          <section className="glass-card p-4">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-white/80">System Status</h2>
             <div className="mt-3 grid gap-3 md:grid-cols-3">
               <StatusCard
@@ -648,6 +649,7 @@ export default function HomePage() {
             </div>
           </section>
         </section>
+        </div>
       </div>
     </main>
   );

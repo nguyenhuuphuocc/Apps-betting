@@ -11,7 +11,7 @@ export function KpiCard({ label, value, hint }: Props) {
     <motion.article
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-xl border border-white/10 bg-panel p-4 shadow-panel"
+      className="glass-card p-4"
     >
       <p className="text-xs uppercase tracking-widest text-white/60">{label}</p>
       <p className="mt-2 text-3xl font-semibold text-white">{value}</p>

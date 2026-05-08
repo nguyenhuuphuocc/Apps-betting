@@ -15,7 +15,8 @@ export function LiveGamesTable({ games }: Props) {
 
   return (
     <div className="overflow-hidden rounded-xl border border-white/10 bg-panel shadow-panel">
-      <table className="w-full text-sm">
+      <div className="overflow-x-auto">
+      <table className="w-full min-w-[860px] text-sm">
         <thead className="bg-panelSoft text-left text-xs uppercase tracking-widest text-white/60">
           <tr>
             <th className="px-4 py-3">Matchup</th>
@@ -71,6 +72,7 @@ export function LiveGamesTable({ games }: Props) {
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
